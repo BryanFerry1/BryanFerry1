@@ -368,3 +368,47 @@ def power_up(freq=220.0):
     f = 85 * np.exp(-t[:n - i] * 10) + 42
     hit[i:] = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t[:n - i] * 5)
     return tone * e * 0.35 + sw + hit * 0.8
+
+
+def laugh(seed=0, n_syll=5, f0=170.0, gain=0.5):
+    """Cartoonish 'ha-ha-ha' from a pulse source through vowel formants."""
+    rng = np.random.default_rng(seed)
+    gap = rng.uniform(0.15, 0.19)
+    d = n_syll * gap + 0.3
+    n = int(d * SR)
+    t = t_axis(d)
+    f = f0 * (1 - 0.18 * t / d) * (1 + 0.03 * np.sin(2 * np.pi * 5 * t))
+    ph = np.cumsum(f) / SR
+    src = 2 * (ph % 1.0) - 1.0
+    env = np.zeros(n)
+    for k in range(n_syll):
+        st = k * gap + rng.uniform(-0.01, 0.01)
+        e = np.clip((t - st) / 0.012, 0, 1) * np.exp(-np.clip(t - st, 0, None) * 16)
+        env += e * (1 - 0.12 * k)
+    X = np.fft.rfft(src * env + bandnoise(d, 1500, 6000, seed) * env * 0.2)
+    fr = np.fft.rfftfreq(n, 1 / SR)
+    mask = sum(a * np.exp(-((fr - fc) / bw) ** 2) for fc, bw, a in ((760, 130, 1.0), (1250, 160, 0.7), (2600, 260, 0.3)))
+    y = np.fft.irfft(X * mask, n)
+    return y / (np.abs(y).max() + 1e-9) * gain
+
+
+def applause(dur=3.0, density=45, seed=1):
+    rng = np.random.default_rng(seed)
+    n = int(dur * SR)
+    out = np.zeros(n + SR)
+    for _ in range(int(dur * density)):
+        st = int(rng.uniform(0, dur) * SR)
+        m = int(rng.uniform(0.01, 0.03) * SR)
+        c = bandnoise(m / SR + 0.001, rng.uniform(800, 1500), rng.uniform(3000, 6000), int(rng.integers(1e6)))[:m]
+        out[st:st + m] += c * np.exp(-np.linspace(0, 5, m)) * rng.uniform(0.1, 0.3)
+    out = out[:n]
+    tt = np.linspace(0, 1, n)
+    return out * np.minimum(1, tt * 6) * np.minimum(1, (1 - tt) * 3)
+
+
+def rewind(dur=0.45):
+    t = t_axis(dur)
+    n = len(t)
+    x = sweep(dur, 2400, 120) * 0.5 + bandnoise(dur, 300, 6000) * 0.3
+    x *= np.sign(np.sin(2 * np.pi * 28 * t)) * 0.3 + 0.7
+    return x * np.minimum(1, t / 0.02) * (1 - t / dur) * 0.7
