@@ -1,0 +1,4 @@
+tiktok-concepts/out/*.png
+tiktok-concepts/out/*_video.mp4
+tiktok-concepts/out/*.wav
+__pycache__/
