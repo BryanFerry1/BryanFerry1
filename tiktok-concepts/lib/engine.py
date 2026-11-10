@@ -145,7 +145,7 @@ class VideoWriter:
         self.p = subprocess.Popen([
             "ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
             "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-            "-c:v", "libx264", "-preset", "medium", "-crf", "17",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
             "-pix_fmt", "yuv420p", path], stdin=subprocess.PIPE)
 
     def write(self, rgb8):
