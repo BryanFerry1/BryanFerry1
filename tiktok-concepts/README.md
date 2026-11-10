@@ -56,3 +56,13 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
    Un seul, blanc, marche à contre-courant vers une lumière rouge et se fait bousculer
    à chaque pas.
    *"IF IT FEELS LONELY, YOU'RE PROBABLY ON THE RIGHT PATH."*
+
+## Sondages (commentaires)
+
+| # | Question | Options |
+|---|----------|---------|
+| 01 | Be honest… which one are you? | Motivation 🔥 / Discipline 🧱 / Trying to become Discipline |
+| 02 | Who are you racing? | Other people 👀 / Yesterday's me 👻 |
+
+Sondages de réserve, réutilisables : *Which episode should be next?* (deux concepts à venir) ·
+*What's stopping you right now?* (Ego / Comfort / Fear / Excuses)
