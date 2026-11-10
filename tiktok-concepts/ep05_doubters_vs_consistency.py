@@ -34,11 +34,15 @@ NAME = "ep05_doubters_vs_consistency"
 GREY = (0.55, 0.55, 0.58)
 dt = 1 / FPS
 
-T_FF, T_RW = 1.35, 1.8          # flash-forward ends / rewind ends (video time)
-# story time (ts) after the rewind
-DAY1_REP, DAY1_N = 1.6, 3
+T_FF = T_RW = 0.0               # no flash-forward any more: the story starts at t = 0
+# Day 1: a shaky rep, a failed rep, he drops the bar, sad, then picks it back up
+REP_A = (0.7, 2.2)
+REP_B = (2.2, 3.35)
+DROP1 = 3.35
+SAD_A, SAD_B = 3.6, 5.5
+PICK_A, PICK_B = 5.5, 6.9
 MONT_REP, MONT_N = 0.5, 16
-MONT_A = DAY1_REP * DAY1_N
+MONT_A = 7.1
 FINAL_A = MONT_A + MONT_REP * MONT_N
 FINAL_D = 2.1
 LOCK = FINAL_A + 1.55
@@ -46,35 +50,36 @@ DROP = FINAL_A + FINAL_D
 CROWD = DROP + 0.1
 P1, P2, P3 = DROP + 1.7, DROP + 2.5, DROP + 2.95
 END_TS = P3 + 2.8
-DUR = T_RW + END_TS
+DUR = END_TS
 N = int(DUR * FPS)
+BAR_GROUND_X = 0.62
 
 
 def ts_of(t):
-    if t < T_FF:                       # flash-forward shows the ending
-        return DROP + 1.0 + t
-    if t < T_RW:
-        return DROP + 1.0 + T_FF
-    return t - T_RW
+    return t
 
 
 def tts(ts):
-    return ts + T_RW
+    return ts
 
 
 def rep_state(ts):
-    """(day, curl 0..1, shake amplitude, rep index or None)"""
-    if ts < 0:
+    """(day, curl 0..1, shake amplitude, rep id or None)"""
+    if ts < REP_A[0]:
         return 1, 0.0, 0.0, None
+    if ts < REP_A[1]:
+        u = (ts - REP_A[0]) / (REP_A[1] - REP_A[0])
+        return 1, 0.85 * math.sin(math.pi * u) ** 1.3, 0.035, ("d1", 0)
+    if ts < REP_B[1]:
+        u = (ts - REP_B[0]) / (REP_B[1] - REP_B[0])
+        c = 0.5 * math.sin(math.pi * min(u, 0.5) / 1.0) if u < 0.75 else 0.5 * (1 - smoothstep(0.75, 1.0, u))
+        return 1, c, 0.06, ("d1", 1)
     if ts < MONT_A:
-        k = int(ts // DAY1_REP)
-        u = (ts - k * DAY1_REP) / DAY1_REP
-        c = math.sin(math.pi * u) ** 1.3 * (0.75 if k == DAY1_N - 1 else 0.92)
-        return k + 1, c, 0.035, ("d1", k)
+        return 1, 0.0, 0.0, None
     if ts < FINAL_A:
         k = int((ts - MONT_A) // MONT_REP)
         u = (ts - MONT_A - k * MONT_REP) / MONT_REP
-        day = int(round(3 * (1000 / 3) ** ((k + 1) / MONT_N)))
+        day = int(round(2 * (1000 / 2) ** ((k + 1) / MONT_N)))
         return day, math.sin(math.pi * u), 0.0, ("m", k)
     if ts < DROP:
         u = (ts - FINAL_A) / FINAL_D
@@ -122,6 +127,25 @@ def hero_pose(ts, t, x=0.0):
     a = 0.12 + 0.18 * c
     b = 0.15 + 2.3 * c
     j = stand(x, 0.03 - 0.05 * c, a, a - 0.04, b, b - 0.05, 0.05)
+    # failed rep -> drops the bar -> sad -> looks up -> picks it back up
+    if DROP1 <= ts < MONT_A + 0.3:
+        br = 0.02 * math.sin(t * 2.2)
+        sad = stand(x, 0.32, 0.04, 0.0, 0.12, 0.08, 0.9, br - 0.04)
+        look = stand(x, 0.18, 0.06, 0.02, 0.15, 0.1, 0.1, -0.02)
+        w = smoothstep(DROP1, SAD_A, ts)
+        j = blend_pose(j, sad, w)
+        j = blend_pose(j, look, smoothstep(SAD_B - 0.5, SAD_B, ts))
+        # bend down, grab, stand up
+        bend = build_pose(np.array([x - 0.2, 0.98]), np.array([x + 0.22, 0.02]), np.array([x - 0.1, 0.02]),
+                          1.05, 0.3, 0.25, 0.1, 0.1, 0.25)
+        bar_g = np.array([BAR_GROUND_X, 0.2])
+        for side in ("1", "2"):
+            bend["hand" + side] = bar_g + ([0.0, 0] if side == "1" else [0.04, 0])
+            bend["elbow" + side] = (bend["shoulder"] + bend["hand" + side]) / 2 + [0.08, 0]
+        w_b = smoothstep(PICK_A, PICK_A + 0.45, ts) * (1 - smoothstep(PICK_A + 0.75, PICK_B, ts))
+        j = blend_pose(j, bend, w_b)
+        rest = stand(x, 0.03, 0.12, 0.08, 0.15, 0.1, 0.0)
+        j = blend_pose(j, rest, smoothstep(PICK_A + 0.75, PICK_B, ts))
     if ts >= DROP:
         w = smoothstep(DROP + 0.1, DROP + 0.5, ts)
         flex = stand(x, -0.02, 1.57, 1.42, 1.55, 1.65, -0.12, 0.01 * math.sin(t * 3))
@@ -131,6 +155,66 @@ def hero_pose(ts, t, x=0.0):
         for kk in ("hand1", "hand2", "elbow1", "elbow2"):
             j[kk] = j[kk] + jit * (1 if "hand" in kk else 0.5)
     return j
+
+
+def bar_pos(ts, t, jh, sc, g):
+    """Where the bar is: in the hands, falling, or on the floor."""
+    rmax = max(plates_for(g))
+    ground = np.array([BAR_GROUND_X * sc, rmax + 0.02])
+    hands = (jh["hand1"] + jh["hand2"]) / 2
+    if DROP1 <= ts < PICK_A + 0.45:
+        b0 = (scale_pose(hero_pose(DROP1 - 0.01, t), 0.0, sc))
+        h0 = (b0["hand1"] + b0["hand2"]) / 2
+        u = smoothstep(DROP1, DROP1 + 0.22, ts)
+        return h0 * (1 - u) + ground * u
+    if PICK_A + 0.45 <= ts < PICK_A + 0.75:
+        return ground
+    if ts >= DROP:
+        b0 = scale_pose(hero_pose(DROP - 0.01, t), 0.0, sc)
+        h0 = (b0["hand1"] + b0["hand2"]) / 2
+        u = smoothstep(DROP - 0.02, DROP + 0.25, ts)
+        return h0 * (1 - u) + (ground + [0.0, 0]) * u
+    return hands
+
+
+SEGS_M = [  # (a, b, extra width at full growth, back limb?)
+    ("hip", "knee2", 0.38, True), ("knee2", "foot2", 0.26, True),
+    ("shoulder", "elbow2", 0.34, True), ("elbow2", "hand2", 0.22, True),
+    ("hip", "neck", 0.52, False),
+    ("hip", "knee1", 0.38, False), ("knee1", "foot1", 0.26, False),
+    ("shoulder", "elbow1", 0.36, False), ("elbow1", "hand1", 0.24, False),
+]
+
+
+def draw_body(c, j, cam, col, alpha, g):
+    """Stick figure that fills out with real muscle bellies as g goes 0 -> 1."""
+    s = cam.s
+    for a, b, wx, back in SEGS_M:
+        pa, pb = np.array(cam.pt(j[a])), np.array(cam.pt(j[b]))
+        al = alpha * (0.55 if back else 1.0)
+        base = (0.12 if a != "hip" or b != "neck" else 0.15) * s
+        c.drawLine(*pa, *pb, paint(col, al, base))
+        w = (0.04 + wx * g ** 0.9) * s
+        if w > base * 1.05:
+            d = pb - pa
+            L = float(np.hypot(*d))
+            ang = math.degrees(math.atan2(d[1], d[0]))
+            mid = pa + d * (0.45 if b not in ("foot1", "foot2") else 0.35)
+            c.save()
+            c.translate(*mid)
+            c.rotate(ang)
+            r = skia.Rect(-L * 0.42, -w / 2, L * 0.42, w / 2)
+            c.drawOval(r, paint(col, al))
+            c.drawOval(r, paint((0, 0, 0), 1.0, max(2.0, 0.05 * s)))
+            c.restore()
+    # delts + traps
+    sx, sy = cam.pt(j["shoulder"])
+    c.drawCircle(sx, sy, (0.07 + 0.17 * g) * s, paint(col, alpha))
+    c.drawCircle(sx, sy, (0.07 + 0.17 * g) * s, paint((0, 0, 0), 1.0, max(2.0, 0.05 * s)))
+    nx, ny = cam.pt(j["neck"])
+    c.drawLine(sx, sy, nx, ny, paint(col, alpha, (0.12 + 0.16 * g) * s))
+    hx, hy = cam.pt(j["head"])
+    c.drawCircle(hx, hy, HEAD_R * s * (1 - 0.08 * g), paint(col, alpha))
 
 
 def doubter_pose(i, x, ts, t):
@@ -189,7 +273,7 @@ def draw_paper(c, cam, j, alpha):
 
 def render(stills=None):
     os.makedirs(OUT, exist_ok=True)
-    env, fig, txt = Layer(), Layer(), Layer()
+    env, fig, txt, hero = Layer(), Layer(), Layer(), Layer()
     post = Post()
     events = []
     rng = np.random.default_rng(12)
@@ -224,7 +308,7 @@ def render(stills=None):
             if day != last_day:
                 events.append((t, "day", 0, day))
                 last_day = day
-            ha_rate = 6.0 * (1 - smoothstep(MONT_A - 0.5, MONT_A + 2.5, ts))
+            ha_rate = (4.0 + 6.0 * smoothstep(DROP1, DROP1 + 0.2, ts) * (1 - smoothstep(SAD_A + 0.5, SAD_B, ts))) * (1 - smoothstep(MONT_A + 0.5, MONT_A + 3.0, ts))
             while ha_rate > 0.2 and ts >= next_ha:
                 i = int(rng.integers(3))
                 x, row = DOUBTERS[i]
@@ -233,6 +317,10 @@ def render(stills=None):
                 next_ha = ts + rng.exponential(1.0 / ha_rate) + 0.08
             if ts >= LOCK and not any(e[1] == "lock" for e in events):
                 events.append((t, "lock", 0, 0))
+            if ts >= DROP1 and not any(e[1] == "drop1" for e in events):
+                events.append((t, "drop1", 0, 0))
+            if ts >= PICK_A + 0.55 and not any(e[1] == "pick" for e in events):
+                events.append((t, "pick", 0, 0))
             if ts >= DROP and not dropped:
                 dropped = True
                 events.append((t, "drop", 0, 0))
@@ -247,7 +335,7 @@ def render(stills=None):
             continue
 
         # ================================================= draw
-        for L in (env, fig, txt):
+        for L in (env, fig, txt, hero):
             L.clear()
         master = smoothstep(0, 0.25, t) * (1 - smoothstep(DUR - 0.35, DUR, t))
         cam0 = Camera()
@@ -303,17 +391,17 @@ def render(stills=None):
         # hero
         sc = 0.84 + 0.44 * g
         jh = scale_pose(hero_pose(ts, t), 0.0, sc)
-        thick = 0.62 + 1.05 * g
+        sad = smoothstep(DROP1, SAD_A, ts) * (1 - smoothstep(SAD_B - 0.3, PICK_A + 0.6, ts))
         hcol = WHITE
-        draw_figure(fig.canvas, jh, cam0, hcol, 0.85 + 0.15 * g, 0.6, thick=thick, head_scale=1 - 0.08 * g)
+        draw_body(hero.canvas, jh, cam0, hcol, (0.85 + 0.15 * g) * (1 - 0.35 * sad), g)
+        # resolve pulse when he grabs the bar again
+        age = ts - (PICK_A + 0.55)
+        if 0 <= age < 0.8:
+            cx, cy = cam0.pt(jh["hip"])
+            fig.canvas.drawCircle(cx, cy - 0.3 * cam0.s, (0.5 + 3.5 * ease_out(age / 0.8)) * cam0.s,
+                                  paint(WHITE, 0.5 * (1 - age / 0.8), 4))
         # bar + plates
-        if ts < DROP:
-            bar = (jh["hand1"] + jh["hand2"]) / 2
-        else:
-            u = smoothstep(DROP - 0.02, DROP + 0.25, ts)
-            b0 = scale_pose(hero_pose(DROP - 0.01, t), 0.0, sc)
-            bar0 = (b0["hand1"] + b0["hand2"]) / 2
-            bar = bar0 * (1 - u) + np.array([bar0[0] + 0.5, max(plates_for(g)) + 0.02]) * u
+        bar = bar_pos(ts, t, jh, sc, g)
         radii = plates_for(g)
         for k in range(len(radii) - 1, -1, -1):
             off = np.array([0.07, -0.045]) * k
@@ -334,7 +422,7 @@ def render(stills=None):
                             paint(RED, (1 - age / 0.7) ** 1.2))
 
         # labels
-        la = smoothstep(0.3, 0.8, ts) * (0 if ff else 1) * (1 - smoothstep(P1 - 0.6, P1, ts))
+        la = smoothstep(2.5, 3.0, ts) * (1 - smoothstep(P1 - 0.6, P1, ts))
         draw_spaced(txt.canvas, "CONSISTENCY", cam0.pt((0, 0))[0], cam0.sy + 52, f_lab, 6, paint(WHITE, la))
         da = la * (1 - smoothstep(CROWD - 0.5, CROWD, ts))
         draw_spaced(txt.canvas, "DOUBTERS", rcam(1).pt((3.5, 0))[0], cam0.sy + 52, f_lab, 6, paint(RED, da))
@@ -345,17 +433,19 @@ def render(stills=None):
             u = (t - T_FF) / (T_RW - T_FF)
             shown_day = max(1, int(1000 * (1 - u) ** 3))
         dcol = RED if shown_day >= 1000 else WHITE
-        ha_ = 1 - 0.55 * smoothstep(P1 - 0.3, P1 + 0.3, ts) * (0 if ff else 1)
+        ha_ = smoothstep(2.5, 3.0, t) * (1 - 0.55 * smoothstep(P1 - 0.3, P1 + 0.3, ts))
         draw_spaced(txt.canvas, "DAY", W / 2, 236, f_cap, 12, paint(WHITE, 0.7 * ha_))
         pop = 1.0
         draw_spaced(txt.canvas, str(shown_day), W / 2, 350, font(110 * pop, "InterDisplay-Bold"), 4, paint(dcol, ha_))
 
-        # title
-        ta = smoothstep(0.1, 0.35, t) * (1 - smoothstep(3.6, 4.1, t))
+        # title: big, centred
+        ta = smoothstep(0.05, 0.3, t) * (1 - smoothstep(2.4, 2.9, t))
         if ta > 0.01:
-            draw_runs(txt.canvas, [("DOUBTERS", paint(RED, ta)), (" VS ", paint(WHITE, ta * 0.7)),
-                                   ("CONSISTENCY", paint(WHITE, ta))], W / 2, 600, f_title, 4)
-
+            pop = 1 + 0.06 * (1 - ease_out(t / 0.4))
+            f1 = fit_font("CONSISTENCY", 150 * pop, "InterDisplay-Black", 6, 980)
+            draw_spaced(txt.canvas, "DOUBTERS", W / 2, 760, font(f1.getSize() * 1.12, "InterDisplay-Black"), 6, paint(RED, ta))
+            draw_spaced(txt.canvas, "VS", W / 2, 860, font(56, "InterDisplay-Bold"), 10, paint(WHITE, 0.75 * ta))
+            draw_spaced(txt.canvas, "CONSISTENCY", W / 2, 1000, f1, 6, paint(WHITE, ta))
         # punchline
         tc = txt.canvas
 
@@ -380,7 +470,8 @@ def render(stills=None):
         e = bloom(env.rgb(), (0.9, (4, 0.6), (22, 0.3)))
         gl = bloom(fig.rgb(), (1.0, (5, 0.9), (18, 0.75 + 0.2 * g), (60, 0.45 + 0.25 * g + flash)))
         x_ = bloom(txt.rgb(), (1.0, (6, 0.7), (26, 0.45)))
-        img = (e + gl + x_) * master
+        hb = bloom(hero.rgb(), (1.0, (4, 0.45), (16, 0.3 + 0.1 * g), (50, 0.22 + 0.12 * g + flash)))
+        img = (e + gl + x_ + hb) * master
         if ff:
             # memory look for the flash-forward, then a tape-rewind glitch
             img = img * 0.85
@@ -415,14 +506,7 @@ def render(stills=None):
 def build_audio(events, path):
     m = sfx.Mixer(DUR)
     m.add_bed(sfx.drone(DUR, rise_at=tts(LOCK)), gain=0.45, fade_in=0.5, fade_out=2.5, stop=DUR)
-    # flash-forward: applause + shutters, then rewind
-    m.add(0.0, sfx.applause(T_FF + 0.1, 40, 3), 0.55, 0, 0.3)
-    r = np.random.default_rng(2)
-    for k in range(7):
-        m.add(r.uniform(0.05, T_FF - 0.1), sfx.shutter(k), 0.45, r.uniform(-0.6, 0.6), 0.2)
-    m.add(T_FF - 0.02, sfx.rewind(T_RW - T_FF + 0.05), 0.9, 0, 0.2)
-    m.add(T_FF, sfx.glitch(4), 0.6, 0, 0.2)
-    m.add(T_RW, sfx.text_hit(5), 0.55, 0, 0.4)
+    m.add(0.05, sfx.text_hit(5), 0.8, 0, 0.4)
     n_m = 0
     for t, kind, pan, extra in events:
         if kind == "ha":
@@ -443,6 +527,12 @@ def build_audio(events, path):
                 m.add(t + 0.2, sfx.rattle(1.2, 5), 0.5, -0.1, 0.2)
                 m.add(t, sfx.heartbeat(), 0.8, 0, 0.3)
                 m.add(t + 0.8, sfx.heartbeat(), 0.9, 0, 0.3)
+        elif kind == "drop1":
+            m.add(t + 0.2, sfx.plate_clank(31, 0.8), 0.9, -0.1, 0.4)
+            m.add(t + 0.35, sfx.power_down(2.2), 0.4, 0, 0.5)
+        elif kind == "pick":
+            m.add(t - 0.55, sfx.power_up(110), 0.9, 0, 0.4)
+            m.add(t - 1.0, sfx.heartbeat(), 0.7, 0, 0.3)
         elif kind == "day":
             m.add(t, sfx.tick(2400, 0.35), 0.4, 0, 0.05)
         elif kind == "lock":
@@ -464,7 +554,7 @@ def build_audio(events, path):
 if __name__ == "__main__":
     print(f"duration {DUR:.2f}s frames {N} lock {tts(LOCK):.2f} drop {tts(DROP):.2f}")
     if "--stills" in sys.argv:
-        ts = [0.7, 1.55, 2.4, 3.6, 5.5, tts(MONT_A + 2.5), tts(MONT_A + 6.5), tts(FINAL_A + 1.2),
+        ts = [1.0, 2.8, 3.3, 4.4, 5.9, 6.3, 8.5, tts(MONT_A + 4.0), tts(MONT_A + 7.0), tts(FINAL_A + 1.2),
               tts(DROP + 0.8), tts(DROP + 1.4), tts(P3 + 1.0)]
         render(stills=sorted(set(int(x * FPS) for x in ts)))
     else:
