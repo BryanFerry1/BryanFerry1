@@ -19,9 +19,9 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 
 ## Épisodes
 
-| # | Titre | Scène | Punchline |
-|---|-------|-------|-----------|
-| 01 | Motivation vs Discipline | Escalier. Motivation sprinte, s'éteint en rouge et se désagrège. Discipline monte marche par marche jusqu'au drapeau rouge. Compteur DAY 1 → 365. | MOTIVATION GETS YOU STARTED. / DISCIPLINE GETS YOU THERE. |
+| # | Titre | Scène | Punchline | Description TikTok |
+|---|-------|-------|-----------|--------------------|
+| 01 | Motivation vs Discipline | Escalier. Motivation sprinte, s'éteint en rouge et se désagrège. Discipline monte marche par marche jusqu'au drapeau rouge. Compteur DAY 1 → 365. | MOTIVATION GETS YOU STARTED. / DISCIPLINE GETS YOU THERE. | Motivation fades after a week. Discipline shows up on day 365. #discipline #motivation #mindset #consistency #stayhard |
 
 ## Scénarios proposés (prochains épisodes)
 
