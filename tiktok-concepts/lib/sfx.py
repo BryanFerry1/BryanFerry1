@@ -245,3 +245,43 @@ class Mixer:
             w.setsampwidth(2)
             w.setframerate(SR)
             w.writeframes(pcm.tobytes())
+
+
+def beep(freq=880, dur=0.18, amp=0.4):
+    n = int(dur * SR)
+    t = t_axis(dur)
+    x = np.sin(2 * np.pi * freq * t) + 0.3 * np.sin(2 * np.pi * freq * 2 * t)
+    return x * env_ad(n, 0.003, dur * 0.8, 2.0) * amp
+
+
+def lock_on(seed=0):
+    """Tense two-tone 'target acquired' zing for Ego's stare."""
+    d = 0.45
+    n = int(d * SR)
+    t = t_axis(d)
+    x = sweep(d, 600, 1900) * 0.5 + np.sin(2 * np.pi * 95 * t) * 0.6
+    x *= env_ad(n, 0.005, 0.25, 3.0)
+    return x * 0.5 + bandnoise(d, 3000, 10000, seed) * env_ad(n, 0.002, 0.08) * 0.15
+
+
+def chime(freq=660, amp=0.35):
+    d = 1.4
+    n = int(d * SR)
+    t = t_axis(d)
+    x = (np.sin(2 * np.pi * freq * t) + 0.45 * np.sin(2 * np.pi * freq * 2.0 * t)
+         + 0.2 * np.sin(2 * np.pi * freq * 3.0 * t))
+    return x * env_ad(n, 0.004, 0.6, 4.0) * amp
+
+
+def body_fall():
+    d = 0.9
+    n = int(d * SR)
+    t = t_axis(d)
+    scuff = bandnoise(d, 400, 5000, 4) * np.exp(-t * 9) * 0.5
+    f = 80 * np.exp(-t * 12) + 40
+    thud = np.sin(2 * np.pi * np.cumsum(f) / SR) * env_ad(n, 0.003, 0.2)
+    x = np.zeros(n)
+    x += scuff
+    i = int(0.18 * SR)
+    x[i:] += thud[:n - i] * 1.1
+    return x

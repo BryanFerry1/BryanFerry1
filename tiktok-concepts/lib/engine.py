@@ -302,3 +302,46 @@ class Particles:
             a = (1 - t) ** 1.5 * (0.6 + 0.4 * math.sin(sd + age * 20))
             sx, sy = cam.pt((x, y))
             canvas.drawCircle(sx, sy, max(1.2, size * cam.s * (1 - 0.5 * t)), paint(col, a))
+
+
+# ----------------------------------------------------------------------------
+# Flat-ground running cycle + misc helpers (EP02+)
+# ----------------------------------------------------------------------------
+def run_pose(x, phase, inten, ground=0.0, lean_add=0.0, head_tilt=0.0):
+    """Procedural run cycle on flat ground. inten 0 = standing, 1 = sprint."""
+    feet, hs = [], []
+    for i in range(2):
+        ph = phase + i * math.pi
+        th = 0.1 + 0.8 * inten * math.sin(ph)
+        ka = 0.2 + inten * (1.4 * max(0.0, math.cos(ph)) + 0.4 * max(0.0, -math.sin(ph)))
+        k = np.array([math.sin(th), -math.cos(th)]) * L_THIGH
+        f = k + np.array([math.sin(th - ka), -math.cos(th - ka)]) * L_SHIN
+        feet.append(f)
+        hs.append(-f[1])
+    hip = np.array([x, ground + max(hs) - 0.02])
+    f1, f2 = hip + feet[0], hip + feet[1]
+    lean = 0.1 + 0.25 * inten + lean_add
+    a1 = 0.1 - 0.9 * inten * math.sin(phase + math.pi)
+    a2 = 0.1 - 0.9 * inten * math.sin(phase)
+    bend = 0.35 + 1.05 * inten
+    return build_pose(hip, f1, f2, lean, a1, a2, bend, bend, head_tilt)
+
+
+def rotate_pose(j, pivot, ang):
+    c, s = math.cos(ang), math.sin(ang)
+    R = np.array([[c, -s], [s, c]])
+    return {k: pivot + R @ (v - pivot) for k, v in j.items()}
+
+
+def fit_font(text, size, name, spacing, max_w):
+    f = font(size, name)
+    while spaced_width(text, f, spacing) > max_w and size > 10:
+        size -= 2
+        f = font(size, name)
+    return f
+
+
+def dashed(color, alpha, width, on, off, phase):
+    p = paint(color, alpha, width)
+    p.setPathEffect(skia.DashPathEffect.Make([on, off], phase))
+    return p

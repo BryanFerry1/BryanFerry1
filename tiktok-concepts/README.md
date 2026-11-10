@@ -22,6 +22,7 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 | # | Titre | Scène | Punchline | Description TikTok |
 |---|-------|-------|-----------|--------------------|
 | 01 | Motivation vs Discipline | Escalier. Motivation sprinte, s'éteint en rouge et se désagrège. Discipline monte marche par marche jusqu'au drapeau rouge. Compteur DAY 1 → 365. | MOTIVATION GETS YOU STARTED. / DISCIPLINE GETS YOU THERE. | Motivation fades after a week. Discipline shows up on day 365. #discipline #motivation #mindset #consistency #stayhard |
+| 02 | Ego vs Obsession | Course en écran partagé. En haut, Ego fixe ses rivaux (ligne rouge), son rang change sans cesse, il trébuche en regardant derrière lui. En bas, Obsession dépasse son fantôme YESTERDAY, jour après jour, de plus en plus vite. | EGO COMPETES WITH OTHERS. / OBSESSION COMPETES WITH YESTERDAY. | Stop checking who's behind you. Start beating who you were yesterday. #obsession #ego #discipline #mindset #selfimprovement |
 
 ## Scénarios proposés (prochains épisodes)
 
