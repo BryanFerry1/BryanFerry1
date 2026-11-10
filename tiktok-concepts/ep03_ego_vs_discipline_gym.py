@@ -163,13 +163,39 @@ ROWS = {1: (0.80, 70), 2: (0.66, 128)}
 
 def spectator_pose(x, t, i, leave, walk_x, walk_ph):
     film = build_pose(np.array([x, 1.52 + 0.01 * math.sin(t * 2 + i)]), np.array([x + 0.12, 0.02]),
-                      np.array([x - 0.12, 0.02]), 0.02, 2.15 + 0.05 * math.sin(t * 1.5 + i), 0.15,
-                      0.55, 0.25, 0.12)
+                      np.array([x - 0.12, 0.02]), 0.02, 1.75 + 0.04 * math.sin(t * 1.5 + i), 1.55,
+                      0.75, 0.95, 0.12)
     if leave <= 0:
         return film, True
     walk = run_pose(walk_x, walk_ph, 0.45)
     walk = {k: v + [0, 0] for k, v in walk.items()}
     return blend_pose(film, walk, smoothstep(0, 0.35, leave)), leave < 0.3
+
+
+def draw_phone(c, rc, jp, alpha, t, i, flashes, tau):
+    """Big, readable smartphone held in both hands, screen facing the viewer."""
+    hx, hy = rc.pt((jp["hand1"] + jp["hand2"]) / 2)
+    pw, ph = 0.44 * rc.s, 0.76 * rc.s
+    x0, y0 = hx - pw / 2, hy - ph * 0.62
+    r = skia.Rect(x0, y0, x0 + pw, y0 + ph)
+    c.drawRoundRect(r, pw * 0.18, pw * 0.18, paint((0, 0, 0), 1.0))
+    # screen glow + the scene being filmed (tiny bench + lifter)
+    inner = skia.Rect(x0 + pw * 0.1, y0 + ph * 0.1, x0 + pw * 0.9, y0 + ph * 0.9)
+    c.drawRoundRect(inner, pw * 0.08, pw * 0.08, paint(WHITE, 0.16 * alpha))
+    cx, cy = (inner.left() + inner.right()) / 2, inner.top() + inner.height() * 0.62
+    c.drawLine(cx - pw * 0.28, cy, cx + pw * 0.25, cy, paint(WHITE, 0.8 * alpha, max(1.5, pw * 0.06)))
+    c.drawCircle(cx + pw * 0.12, cy - ph * 0.14, pw * 0.11, paint(WHITE, 0.8 * alpha, max(1.2, pw * 0.04)))
+    # frame + notch
+    c.drawRoundRect(r, pw * 0.18, pw * 0.18, paint(WHITE, 0.95 * alpha, max(2.0, pw * 0.07)))
+    c.drawLine(cx - pw * 0.12, y0 + ph * 0.05, cx + pw * 0.12, y0 + ph * 0.05, paint(WHITE, 0.9 * alpha, max(1.5, pw * 0.04)))
+    # blinking REC dot
+    if (int(t * 2.5) + i) % 2 == 0:
+        c.drawCircle(inner.left() + pw * 0.13, inner.top() + pw * 0.13, max(2.5, pw * 0.08), paint(RED, alpha))
+    # camera flash pop
+    for ft, k in flashes:
+        if k == i and 0 <= tau - ft < 0.3:
+            fa = 1 - (tau - ft) / 0.3
+            c.drawCircle(hx + pw * 0.22, y0 + ph * 0.2, (0.08 + 0.22 * fa) * rc.s, paint(WHITE, 0.95 * fa))
 
 
 def render(stills=None):
@@ -313,16 +339,8 @@ def render(stills=None):
                 sa = 0.5 * top_dim * (1 - smoothstep(1.2, 2.2, leave))
                 draw_figure(env.canvas, jp, rc, GREY, sa, 0.6)
                 if filming and sa > 0.02:
-                    hx, hy = rc.pt(jp["hand1"])
-                    pw, ph_ = 0.17 * rc.s, 0.3 * rc.s
-                    env.canvas.drawRoundRect(skia.Rect(hx - pw / 2, hy - ph_, hx + pw / 2, hy), 4, 4,
-                                             paint(WHITE, 0.85 * sa / 0.5 * (1 - smoothstep(0, 0.3, leave))))
-                    if (int(t * 2) + i) % 2 == 0:
-                        fig.canvas.drawCircle(hx + pw * 0.25, hy - ph_ * 0.85, 3.5, paint(RED, 0.9 * top_dim))
-                    for ft, k in flashes:
-                        if k == i and 0 <= tau - ft < 0.25:
-                            fa = 1 - (tau - ft) / 0.25
-                            fig.canvas.drawCircle(hx, hy - ph_ * 0.5, (0.4 + 0.6 * fa) * rc.s * 0.6, paint(WHITE, 0.9 * fa))
+                    pa = top_dim * (1 - smoothstep(0, 0.3, leave))
+                    draw_phone(fig.canvas, rc, jp, pa, t, i, flashes, tau)
             draw_bench(env.canvas, cam, 0.0, top_dim)
             ecol = mix(WHITE, RED, redness)
             flick = 1.0
