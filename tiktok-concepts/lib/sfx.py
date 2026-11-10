@@ -334,3 +334,37 @@ def rattle(dur=1.0, seed=0):
         g = np.sin(2 * np.pi * f * np.arange(m) / SR) * np.exp(-np.linspace(0, 8, m))
         out[st:st + m] += g * rng.uniform(0.05, 0.15)
     return out[:n]
+
+
+def shatter(seed=0, big=1.0):
+    """Wall breaking: crack + debris tinkles + low hit."""
+    rng = np.random.default_rng(seed)
+    d = 2.0
+    n = int(d * SR)
+    t = t_axis(d)
+    x = bandnoise(d, 500, 12000, seed) * np.exp(-t * 14) * 0.9
+    f = 90 * np.exp(-t * 10) + 40
+    x += np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 4) * 0.9 * big
+    for _ in range(int(40 * big)):
+        st = int(rng.uniform(0.02, 0.9) ** 1.5 * SR)
+        m = int(0.06 * SR)
+        fr = rng.uniform(1200, 5000)
+        g = np.sin(2 * np.pi * fr * np.arange(m) / SR) * np.exp(-np.linspace(0, 7, m))
+        x[st:st + m] += g * rng.uniform(0.04, 0.14)
+    return x * 0.7
+
+
+def power_up(freq=220.0):
+    """Rising swell that lands when the hero stands back up."""
+    d = 1.1
+    n = int(d * SR)
+    t = t_axis(d)
+    e = np.clip(t / 0.55, 0, 1) ** 2.5 * np.exp(-np.clip(t - 0.55, 0, None) * 5)
+    tone = (np.sin(2 * np.pi * freq * t) + 0.5 * np.sin(2 * np.pi * freq * 1.5 * t)
+            + 0.3 * np.sin(2 * np.pi * freq * 2 * t))
+    sw = bandnoise(d, 400, 6000) * e * 0.3
+    hit = np.zeros(n)
+    i = int(0.55 * SR)
+    f = 85 * np.exp(-t[:n - i] * 10) + 42
+    hit[i:] = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t[:n - i] * 5)
+    return tone * e * 0.35 + sw + hit * 0.8

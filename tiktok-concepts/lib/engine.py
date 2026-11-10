@@ -218,10 +218,10 @@ def pose_points(j):
     return segs
 
 
-def draw_figure(canvas, j, cam, color, alpha=1.0, back_alpha=0.55):
+def draw_figure(canvas, j, cam, color, alpha=1.0, back_alpha=0.55, thick=1.0, head_scale=1.0):
     s = cam.s
-    lw = 0.19 * s
-    tw = 0.23 * s
+    lw = 0.19 * s * thick
+    tw = 0.23 * s * thick
     P = lambda k: cam.pt(j[k])
     # back limbs (dimmer, for depth)
     pb = paint(color, alpha * back_alpha, lw)
@@ -232,7 +232,7 @@ def draw_figure(canvas, j, cam, color, alpha=1.0, back_alpha=0.55):
     for a, b in (("hip", "knee1"), ("knee1", "foot1"), ("shoulder", "elbow1"), ("elbow1", "hand1")):
         canvas.drawLine(*P(a), *P(b), pf)
     hx, hy = P("head")
-    canvas.drawCircle(hx, hy, HEAD_R * s, paint(color, alpha))
+    canvas.drawCircle(hx, hy, HEAD_R * s * head_scale, paint(color, alpha))
 
 
 class Camera:
