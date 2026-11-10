@@ -23,6 +23,7 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 |---|-------|-------|-----------|--------------------|
 | 01 | Motivation vs Discipline | Escalier. Motivation sprinte, s'éteint en rouge et se désagrège. Discipline monte marche par marche jusqu'au drapeau rouge. Compteur DAY 1 → 365. | MOTIVATION GETS YOU STARTED. / DISCIPLINE GETS YOU THERE. | Motivation fades after a week. Discipline shows up on day 365. #discipline #motivation #mindset #consistency #stayhard |
 | 02 | Ego vs Obsession | Course en écran partagé. En haut, Ego fixe ses rivaux (ligne rouge), son rang change sans cesse, il trébuche en regardant derrière lui. En bas, Obsession dépasse son fantôme YESTERDAY, jour après jour, de plus en plus vite. | EGO COMPETES WITH OTHERS. / OBSESSION COMPETES WITH YESTERDAY. | Stop checking who's behind you. Start beating who you were yesterday. #obsession #ego #discipline #mindset #selfimprovement |
+| 03 | Ego vs Discipline (gym) | Hook « ONE OF THEM IS ABOUT TO GET HURT. » Développé couché. En haut, Ego charge jusqu'à 180 kg devant une foule qui filme et se fait écraser par la barre. En bas, Discipline ajoute un disque par semaine jusqu'à WEEK 52 et 180 kg. | LEAVE YOUR / EGO / AT THE DOOR. | They came to watch you lift. Nobody stayed to watch you heal. #gym #ego #discipline #gymmotivation #mindset |
 
 ## Scénarios proposés (prochains épisodes)
 
@@ -63,6 +64,7 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 |---|----------|---------|
 | 01 | Be honest… which one are you? | Motivation 🔥 / Discipline 🧱 / Trying to become Discipline |
 | 02 | Who are you racing? | Other people 👀 / Yesterday's me 👻 |
+| 03 | Ever let your ego pick the weight? | Yes, and I paid for it 🤕 / Yes, still lucky / Never, form first
 
 Sondages de réserve, réutilisables : *Which episode should be next?* (deux concepts à venir) ·
 *What's stopping you right now?* (Ego / Comfort / Fear / Excuses)

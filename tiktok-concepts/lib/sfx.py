@@ -285,3 +285,52 @@ def body_fall():
     i = int(0.18 * SR)
     x[i:] += thud[:n - i] * 1.1
     return x
+
+
+def plate_clank(seed=0, heavy=1.0):
+    """Metallic gym plate hit: inharmonic partials + transient."""
+    rng = np.random.default_rng(seed)
+    d = 1.2
+    n = int(d * SR)
+    t = t_axis(d)
+    x = np.zeros(n)
+    base = rng.uniform(180, 240) / (0.7 + 0.3 * heavy)
+    for ratio, a, dec in ((1.0, 1.0, 5), (2.76, 0.6, 7), (5.4, 0.4, 10), (8.93, 0.25, 14), (13.3, 0.12, 20)):
+        x += np.sin(2 * np.pi * base * ratio * t + rng.uniform(0, 6)) * a * np.exp(-t * dec)
+    x += bandnoise(d, 1500, 9000, seed) * np.exp(-t * 60) * 0.8
+    f = 70 * np.exp(-t * 15) + 45
+    x += np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 9) * 0.9 * heavy
+    return x * 0.35
+
+
+def breath(seed=0, dur=0.45):
+    n = int(dur * SR)
+    t = np.linspace(0, 1, n)
+    e = np.sin(np.pi * t) ** 1.5
+    return bandnoise(dur, 300, 2200, seed) * e * 0.25
+
+
+def shutter(seed=0):
+    d = 0.12
+    n = int(d * SR)
+    x = np.zeros(n)
+    for off in (0.0, 0.045):
+        m = int(0.02 * SR)
+        i = int(off * SR)
+        x[i:i + m] += bandnoise(0.02, 2000, 10000, seed + int(off * 100)) * np.exp(-np.linspace(0, 6, m))
+    return x * 0.4
+
+
+def rattle(dur=1.0, seed=0):
+    """Bar shaking under load: sparse metallic ticks."""
+    rng = np.random.default_rng(seed)
+    n = int(dur * SR)
+    out = np.zeros(n + SR)
+    k = int(dur * 18)
+    for i in range(k):
+        st = int(rng.uniform(0, dur) * SR)
+        f = rng.uniform(1800, 4200)
+        m = int(0.05 * SR)
+        g = np.sin(2 * np.pi * f * np.arange(m) / SR) * np.exp(-np.linspace(0, 8, m))
+        out[st:st + m] += g * rng.uniform(0.05, 0.15)
+    return out[:n]
