@@ -22,6 +22,19 @@ stick figure with a label. Code and episodes live in `tiktok-concepts/`; see
   (question + 2–4 short options). Add both to the README tables.
 - The user speaks French; answer in French. Video text stays in English.
 
+## TikTok safe zone (1080×1920) — mandatory from EP06 on
+The TikTok UI covers parts of the frame (seen on EP05: the DAY counter sat
+under the "Suivis / Pour toi" tabs, and the doubters were hidden behind the
+like/comment/share column).
+- **Top:** nothing important above **y ≈ 320**. HUD counters (DAY, KG, RANK…):
+  small caption around y ≈ 360, big number baseline around y ≈ 470.
+- **Right:** keep characters, labels and text **left of x ≈ 880** (the icon
+  column takes the right ~200 px). Centre the scene slightly left instead of
+  using the full width.
+- **Left:** keep a ~80 px margin.
+- **Bottom:** nothing important below **y ≈ 1560** (username + description).
+- Check the `--stills` contact sheet against these limits before the full render.
+
 ## Workflow (keep it cheap)
 - Build new episodes from the shared engine (`lib/engine.py`: figures, poses,
   run cycle, camera, bloom, text; `lib/sfx.py`: all sounds). Reuse patterns
