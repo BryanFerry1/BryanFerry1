@@ -33,6 +33,7 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 | 03 | Ego vs Discipline (gym) | Hook « ONE OF THEM IS ABOUT TO GET HURT. » Développé couché. En haut, Ego charge jusqu'à 180 kg devant une foule qui filme et se fait écraser par la barre. En bas, Discipline ajoute un disque par semaine jusqu'à WEEK 52 et 180 kg. | LEAVE YOUR / EGO / AT THE DOOR. | They came to watch you lift. Nobody stayed to watch you heal. #gym #ego #discipline #gymmotivation #mindset |
 | 04 | Quitter vs Resilience | Hook « HE FELL 7 TIMES. WATCH WHAT HAPPENED. » Murs rouges FAILURE, REJECTION, DOUBT, BROKE, ALONE, LOSS, IMPOSSIBLE. Les deux tombent au premier, Quitter reste assis. Resilience se relève à chaque fois plus grand et lumineux, et pulvérise IMPOSSIBLE au ralenti. | FALL SEVEN TIMES. / STAND UP / EIGHT. | Every wall that knocked you down is a wall you'll break next time. #resilience #neverquit #discipline #mindset #comeback |
 | 05 | Doubters vs Consistency | Titre en grand au centre. DAY 1 : un maigre rate son curl, lâche la barre sous les rires (HA rouges), reste triste tête basse, puis relève la tête et la reprend (onde de lumière). Montage jusqu'à DAY 1000 : il prend du muscle visiblement (biceps, épaules, pecs, cuisses), les doubters arrêtent de rire. Fin : photos, autographe, applaudissements. | THEY LAUGH AT DAY 1. / THEY CLAP AT / DAY 1000. | The same people who laughed will ask for a picture. #gym #glowup #consistency #gymmotivation #transformation |
+| 06 | Ego vs Discipline vs Obsession | Hook visuel : caméra sur le sommet (drapeau rouge) puis plongée jusqu'au pied de 3 échelles géantes. Ego grimpe vite mais regarde en bas (lignes rouges), nargue, se fait dépasser, glisse et chute. Time-lapse jour/nuit : Discipline grimpe le jour et dort la nuit, Obsession ne s'arrête jamais et regarde le drapeau. Obsession au sommet, DAY 365, recul final. | EGO LOOKS DOWN. / DISCIPLINE LOOKS AHEAD. / OBSESSION LOOKS UP. | Ego looks down. Discipline looks ahead. Obsession looks up. #obsession #discipline #ego #mindset #stayhard |
 
 ## Scénarios proposés (prochains épisodes)
 
@@ -75,6 +76,7 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 | 02 | Who are you racing? | Other people 👀 / Yesterday's me 👻 |
 | 04 | How many times have you fallen this year? | 1–2 / 3–6 / 7+ / Lost count, still standing 💪 |
 | 05 | Has anyone ever laughed at you in the gym? | Yes, and I kept going 💪 / Yes, and I quit / No, never / I was the one laughing 😬 |
+| 06 | Which one are you right now? | Ego 👀 / Discipline 🧱 / Obsession 🔥 |
 | 03 | Ever let your ego pick the weight? | Yes, and I paid for it 🤕 / Yes, still lucky / Never, form first
 
 Sondages de réserve, réutilisables : *Which episode should be next?* (deux concepts à venir) ·
