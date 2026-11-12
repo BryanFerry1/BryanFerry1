@@ -412,3 +412,44 @@ def rewind(dur=0.45):
     x = sweep(dur, 2400, 120) * 0.5 + bandnoise(dur, 300, 6000) * 0.3
     x *= np.sign(np.sin(2 * np.pi * 28 * t)) * 0.3 + 0.7
     return x * np.minimum(1, t / 0.02) * (1 - t / dur) * 0.7
+
+
+def bell(freq=820.0, dur=2.2):
+    """Boxing ring bell: inharmonic partials, long ring."""
+    t = t_axis(dur)
+    x = np.zeros(len(t))
+    for r, a, d in ((1.0, 1.0, 1.6), (2.76, 0.5, 2.5), (5.4, 0.3, 4.0), (8.9, 0.15, 6.0)):
+        x += np.sin(2 * np.pi * freq * r * t) * a * np.exp(-t * d)
+    x += bandnoise(dur, 2000, 9000, 3) * np.exp(-t * 40) * 0.4
+    return x * 0.35
+
+
+def punch_hit(seed=0, heavy=1.0):
+    """Glove on body: snap + low thud."""
+    d = 0.6
+    n = int(d * SR)
+    t = t_axis(d)
+    snap = bandnoise(d, 800, 7000, seed) * np.exp(-t * 45)
+    f = 120 * np.exp(-t * 20) + 50
+    thud = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 10)
+    return (snap * 0.6 + thud * heavy) * 0.6
+
+
+def punch_block(seed=0):
+    d = 0.3
+    t = t_axis(d)
+    return (bandnoise(d, 200, 2500, seed) * np.exp(-t * 35) * 0.5
+            + np.sin(2 * np.pi * 90 * t) * np.exp(-t * 25) * 0.4)
+
+
+def swish(seed=0):
+    return whoosh(0.18, 1500, 9000, 0.6, seed=seed) * 0.6
+
+
+def spot_on():
+    """Big stadium light switching on."""
+    d = 1.5
+    t = t_axis(d)
+    clunk = np.sin(2 * np.pi * 70 * t) * np.exp(-t * 12) + bandnoise(d, 100, 3000, 5) * np.exp(-t * 25) * 0.6
+    hum = np.sin(2 * np.pi * 100 * t) * 0.08 * np.minimum(1, t * 4) * np.exp(-t * 1.2)
+    return (clunk + hum) * 0.6
