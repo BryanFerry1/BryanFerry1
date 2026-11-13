@@ -464,7 +464,8 @@ def render(stills=None):
                 draw_figure(e, jt2, tb, GREY, 0.35 * ta_, 0.6)
                 tsx, _ = tb.pt((4.6, 0))
                 draw_spaced(tc, "TALENT", tsx, tb.sy + 34, font(22, "Inter-Bold"), 5, paint(GREY, 0.5 * ta_))
-            # girls appear one by one behind him while he grows
+            # girls appear one by one behind him while he grows; they fade back when the ex arrives
+            dimf = 1 - 0.75 * smoothstep(EX_RUN[0] - 0.1, EX_RUN[0] + 0.5, t)
             for i, ((gx, face), thr) in enumerate(zip(GIRLS, GIRL_AT)):
                 if g_now < thr:
                     continue
@@ -475,10 +476,10 @@ def render(stills=None):
                 jg = {kk: v + [gx, 0] for kk, v in jg.items()}
                 if face < 0:
                     jg = mirror(jg, gx)
-                draw_girl(e, gc, jg, GREY, 0.55 * ga, face)
+                draw_girl(e, gc, jg, GREY, 0.55 * ga * dimf, face)
                 sx, sy = gc.pt((gx, 3.3))
                 pop = 1 + 0.6 * (1 - ga)
-                draw_heart(f_, sx, sy + 5 * math.sin(t * 4 + i), 22 * pop, 0.9 * ga)
+                draw_heart(f_, sx, sy + 5 * math.sin(t * 4 + i), 22 * pop, 0.9 * ga * dimf)
             # the ex runs in from the right and drops to her knees
             if t >= EX_RUN[0]:
                 u = smoothstep(EX_RUN[0], EX_RUN[1] - 0.15, t)
@@ -489,7 +490,20 @@ def render(stills=None):
                 jx = blend_pose(running, kn, w)
                 jx = {kk: v + [exx_w, 0] for kk, v in jx.items()}
                 jx = mirror(jx, exx_w)
-                draw_girl(f_, cam, jx, WHITE, 0.95, -1)
+                # soft spotlight on her
+                sxp, _ = cam.pt((exx_w - 0.3, 0))
+                spot = skia.Paint(AntiAlias=True)
+                spot.setShader(skia.GradientShader.MakeLinear(
+                    [skia.Point(0, GROUND - 520), skia.Point(0, GROUND)],
+                    [skia.Color4f(1, 1, 1, 0.0), skia.Color4f(1, 1, 1, 0.07 * smoothstep(EX_RUN[1] - 0.4, EX_RUN[1], t))]))
+                sp = skia.Path()
+                sp.moveTo(sxp - 25, GROUND - 520)
+                sp.lineTo(sxp + 25, GROUND - 520)
+                sp.lineTo(sxp + 170, GROUND)
+                sp.lineTo(sxp - 170, GROUND)
+                sp.close()
+                e.drawPath(sp, spot)
+                draw_girl(f_, cam, jx, WHITE, 1.0, -1)
                 exl, _ = cam.pt((exx_w - 0.1, 0))
                 draw_spaced(tc, "EX", exl, GROUND + 46, f_lab, 6, paint(WHITE, 0.95 * (1 - smoothstep(P1 - 0.5, P1, t))))
                 if t >= EX_RUN[1]:
