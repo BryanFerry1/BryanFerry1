@@ -453,3 +453,31 @@ def spot_on():
     clunk = np.sin(2 * np.pi * 70 * t) * np.exp(-t * 12) + bandnoise(d, 100, 3000, 5) * np.exp(-t * 25) * 0.6
     hum = np.sin(2 * np.pi * 100 * t) * 0.08 * np.minimum(1, t * 4) * np.exp(-t * 1.2)
     return (clunk + hum) * 0.6
+
+
+def rain(dur, seed=4):
+    n = int(dur * SR)
+    x = bandnoise(dur, 1500, 10000, seed) * 0.35 + bandnoise(dur, 200, 1200, seed + 1) * 0.15
+    rng = np.random.default_rng(seed)
+    for _ in range(int(dur * 60)):
+        m = int(0.01 * SR)
+        st = int(rng.uniform(0, dur - 0.02) * SR)
+        x[st:st + m] += bandnoise(0.01, 2000, 8000, int(rng.integers(1e6)))[:m] * rng.uniform(0.1, 0.3)
+    tt = np.linspace(0, 1, n)
+    return x * np.minimum(1, tt * 5) * np.minimum(1, (1 - tt) * 5)
+
+
+def thunder(seed=2):
+    d = 3.5
+    t = t_axis(d)
+    crack = bandnoise(d, 300, 8000, seed) * np.exp(-t * 6)
+    rumble = bandnoise(d, 30, 250, seed + 1) * np.exp(-t * 0.9) * (0.7 + 0.3 * np.sin(2 * np.pi * 3 * t))
+    return (crack * 0.6 + rumble * 1.2) * 0.8
+
+
+def heart_break():
+    d = 1.2
+    t = t_axis(d)
+    crack = bandnoise(d, 1500, 9000, 7) * np.exp(-t * 30) * 0.8
+    tone = sweep(d, 520, 140) * np.exp(-t * 2.5) * 0.35
+    return crack + tone
