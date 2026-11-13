@@ -1,14 +1,16 @@
-"""EP14 - DIG  (motivation, talent, ego, obsession)
+"""EP14 - DIG  (same storyline as the user's reference, redrawn in our DA)
 
-Visual hook: we open deep underground on a diamond glittering in the dark,
-then the camera rushes up to the surface: four tiny figures with shovels.
-Their names pop one by one: MOTIVATION / TALENT / EGO / OBSESSION.
-They dig. MOTIVATION starts fastest and quits first (OUT). TALENT finds one red
-coin and sits admiring it (OUT). EGO finds a pile of coins and lies on it (OUT).
-OBSESSION keeps going alone; red doubts appear on the walls, he drops to his
-knees, gets back up with a red aura and digs faster and faster... 60 M: he
-strikes the diamond. Pull back on the four shafts.
-PUNCH  EVERYONE STOPS SOMEWHERE. / OBSESSION / DOESN'T.
+ 0.0  "DIG!"  Four figures at the surface: MOTIVATION, TALENT, OBSESSION, EGO.
+ 1.2  They dig. MOTIVATION quits first, sits head down (OUT).
+ 4.2  TALENT finds a glowing red coin, sits and stares at it (OUT).
+ 6.5  OBSESSION and EGO keep going (EGO deeper). Doubts appear on the walls:
+      I CAN'T / I'M A LOSER / I'M NOT BUILT FOR THIS. OBSESSION curls up, turns red.
+12.0  Interlude (our own visuals): dictionary card "obsessed" -> zoom on the word
+      -> "YOU VS YOU" -> "IT'S YOU VS YOU" + Sisyphus pushing his boulder.
+16.0  OBSESSION digs like crazy. EGO hits a pile of red coins, a heart pops,
+      he lies down on it. OBSESSION passes him (red flash).
+19.6  Pull back: his shaft is just a thread, a huge pile of diamonds at the bottom.
+PUNCH THEY ALL STOPPED. / OBSESSION KEPT DIGGING.
 """
 import math
 import os
@@ -17,67 +19,82 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
-from engine import (FPS, HEAD_R, RED, WHITE, W, Camera, Particles, build_pose, clamp, draw_spaced,
-                    ease_out, font, mix, paint, smoothstep)
-from kit import (CX, GREY, Log, Video, blend, draw_body, hud, kneel, punch, sad, sit, stand)
+from engine import (FPS, RED, WHITE, W, H, Camera, Particles, build_pose, clamp, draw_spaced,
+                    ease_out, font, mix, paint, smoothstep, spaced_width)
+from kit import CX, GREY, Log, Video, blend, draw_body, draw_heart, kneel, sad, sit, stand
 import sfx
 import skia
 
 OUT = os.path.join(os.path.dirname(__file__), "out")
 NAME = "ep14_dig"
 dt = 1 / FPS
-S0 = 92.0
-XS = {"MOTIVATION": -2.85, "TALENT": -0.95, "EGO": 0.95, "OBSESSION": 2.85}
-ORDER = ["MOTIVATION", "TALENT", "EGO", "OBSESSION"]
-DIAMOND = 30.6
-M_PER_U = 2.0
-
-HOOK_PAN = (1.1, 2.3)
-NAMES_T = [2.6, 2.95, 3.3, 3.65]
-GO = 4.1
-STOP = {"MOTIVATION": (5.3, 2.4), "TALENT": (6.8, 4.6), "EGO": (8.6, 8.2)}
-DOUBT = (10.6, 13.6)
-DOUBTS = [(10.8, "I CAN'T."), (11.5, "NOT BUILT FOR THIS."), (12.2, "WHAT'S THE POINT?")]
-KNEEL = (12.2, 12.8)
-RISE = 13.6
-HIT = 17.6
-PULL = HIT + 0.9
-P1, P2, P3 = HIT + 2.3, HIT + 3.1, HIT + 3.6
-DUR = P3 + 3.0
+ORDER = ["MOTIVATION", "TALENT", "OBSESSION", "EGO"]
+XS = {"MOTIVATION": -2.85, "TALENT": -0.95, "OBSESSION": 0.95, "EGO": 2.85}
+SERIF = skia.Typeface.MakeFromFile("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf")
+SERIF_I = skia.Typeface.MakeFromFile("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf")
+MONO = skia.Typeface.MakeFromFile("/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf")
 
 
-def depth(name, t):
+def sfont(size, tf=None):
+    f = skia.Font(tf or SERIF, size)
+    f.setSubpixel(True)
+    f.setEdging(skia.Font.Edging.kAntiAlias)
+    return f
+
+
+GO = 1.2
+STOP = {"MOTIVATION": (3.3, 2.2), "TALENT": (5.4, 4.3)}
+EGO_GOLD = 18.4
+EGO_D = 15.5
+DOUBTS = [(8.6, "I CAN'T"), (9.3, "I'M A LOSER"), (10.0, "I'M NOT BUILT FOR THIS")]
+DOUBT = (8.4, 12.0)
+RED_T = 10.6
+INTER = (12.0, 15.9)
+PASS = 19.6
+PILE = 34.0
+BOTTOM_T = 22.0
+P1, P2 = 22.9, 23.7
+DUR = 27.0
+
+
+def ego_depth(t):
     if t < GO:
         return 0.0
-    u = t - GO
-    if name in STOP:
-        ts, d = STOP[name]
-        T = ts - GO
-        return d * (1 - (1 - min(1.0, u / T)) ** 1.6)
-    # obsession
-    d1 = 1.05 * min(u, DOUBT[0] - GO)                         # steady
+    if t < EGO_GOLD:
+        return EGO_D * (1 - (1 - (t - GO) / (EGO_GOLD - GO)) ** 1.25)
+    return EGO_D
+
+
+def obs_depth(t):
+    if t < GO:
+        return 0.0
     if t < DOUBT[0]:
-        return d1
-    d2 = d1 + 0.18 * (min(t, RISE) - DOUBT[0])                 # doubts: almost stops
-    if t < RISE:
-        return d2
-    v = 1.5 + 4.0 * smoothstep(RISE, RISE + 2.0, t)
-    acc = 0.0
-    tt = RISE
-    while tt < min(t, HIT):
-        acc += (1.5 + 4.0 * smoothstep(RISE, RISE + 2.0, tt)) * 0.02
-        tt += 0.02
-    return min(DIAMOND - 1.0, d2 + acc)
+        return 0.95 * (t - GO)
+    d0 = 0.95 * (DOUBT[0] - GO)
+    if t < INTER[1]:
+        return d0 + 0.1 * (min(t, DOUBT[1]) - DOUBT[0])
+    d1 = d0 + 0.1 * (DOUBT[1] - DOUBT[0])
+    # furious digging after the interlude, reaches the pile at BOTTOM_T
+    u = clamp((t - INTER[1]) / (BOTTOM_T - INTER[1]))
+    return d1 + (PILE - 0.6 - d1) * (u ** 1.35)
+
+
+def depth(n, t):
+    if n in STOP:
+        ts, d = STOP[n]
+        if t < GO:
+            return 0.0
+        return d * (1 - (1 - min(1.0, (t - GO) / (ts - GO))) ** 1.6)
+    return ego_depth(t) if n == "EGO" else obs_depth(t)
 
 
 def dig_pose(x, y, t, speed, ph=0.0):
-    """Facing right, shovel strokes. Returns joints + shovel tip."""
-    c = 0.5 + 0.5 * math.sin(t * (6 + 6 * speed) + ph)
+    c = 0.5 + 0.5 * math.sin(t * (6 + 9 * speed) + ph)
     j = build_pose(np.array([x - 0.05, y + 1.42 - 0.12 * c]), np.array([x + 0.25, y + 0.02]), np.array([x - 0.25, y + 0.02]),
                    0.35 + 0.3 * c, 0.9 - 0.5 * c, 0.75 - 0.5 * c, 0.6, 0.7, 0.3 + 0.2 * c)
     hand = (j["hand1"] + j["hand2"]) / 2
     tip = hand + np.array([0.25 + 0.1 * c, -1.0 + 0.3 * (1 - c)])
-    return j, hand, tip, c
+    return j, tip
 
 
 def lie_relax(x, y):
@@ -91,23 +108,74 @@ def lie_relax(x, y):
             "elbow2": sh + [0.25, 0.5], "hand2": sh + [0.42, 0.25]}
 
 
-def gem(c, cx, cy, r, alpha, t):
-    pts = [(-1, 0), (-0.6, 0.45), (0.6, 0.45), (1, 0), (0, -1.0)]
-    p = skia.Path()
-    for k, (a, b) in enumerate(pts):
-        (p.moveTo if k == 0 else p.lineTo)(cx + a * r, cy - b * r)
-    p.close()
-    c.drawPath(p, paint(WHITE, 0.25 * alpha))
-    c.drawPath(p, paint(WHITE, alpha, 4))
-    for a, b in ((-0.6, 0.45), (0.6, 0.45), (0, 0.45)):
-        c.drawLine(cx + a * r, cy - b * r, cx, cy + r, paint(WHITE, 0.7 * alpha, 2))
-    c.drawLine(cx - r, cy, cx + r, cy, paint(WHITE, 0.7 * alpha, 2))
-    for k in range(4):                          # glints
-        ang = t * 2 + k * 1.57
-        gx, gy = cx + math.cos(ang) * r * 1.4, cy + math.sin(ang * 1.3) * r * 0.9
-        L = r * 0.3 * (0.5 + 0.5 * math.sin(t * 7 + k))
+def diamond_pile(c, cx, cy, w, alpha, t, rng_seed=4):
+    """A glittering triangular pile of diamonds (base centre at cx, cy)."""
+    r = np.random.default_rng(rng_seed)
+    h = w * 0.62
+    c.drawCircle(cx, cy - h * 0.4, w * 0.8, paint(WHITE, 0.025 * alpha))
+    for _ in range(420):
+        u, v_ = r.random(), r.random()
+        if u + v_ > 1:
+            u, v_ = 1 - u, 1 - v_
+        px = cx - w / 2 + u * w + v_ * w / 2 - v_ * w / 2 * 0 + (v_ * 0)
+        px = cx + (u - v_) * w / 2
+        py = cy - (1 - u - v_) * 0 - (u * 0) - (1 - (u + v_)) * 0
+        py = cy - h * (1 - abs(px - cx) / (w / 2)) * r.random()
+        tw = 0.5 + 0.5 * math.sin(t * 9 + px * 0.3 + py * 0.2)
+        s = r.uniform(2, 5)
+        c.drawRect(skia.Rect(px - s, py - s, px + s, py + s), paint(WHITE, alpha * (0.15 + 0.5 * tw)))
+    for k in range(5):
+        gx = cx + math.sin(t * 1.3 + k * 2) * w * 0.3
+        gy = cy - h * (0.3 + 0.12 * k)
+        L = 14 * (0.5 + 0.5 * math.sin(t * 6 + k))
         c.drawLine(gx - L, gy, gx + L, gy, paint(WHITE, alpha, 2))
         c.drawLine(gx, gy - L, gx, gy + L, paint(WHITE, alpha, 2))
+
+
+def doubt_tag(c, tc, x, y, text, alpha):
+    f = sfont(24, MONO)
+    w = spaced_width(text, f, 1) + 24
+    r = skia.Rect(x - w / 2, y - 26, x + w / 2, y + 8)
+    c.drawRect(r, paint((0.75, 0.75, 0.78), 0.9 * alpha))
+    draw_spaced(tc, text, x, y - 2, f, 1, paint((0, 0, 0), alpha))
+    # black text on a light tag: draw it into the fig layer too so it reads after compositing
+    c.drawRect(r, paint((0, 0, 0), 0.0))
+
+
+def sisyphus(c, t, alpha, zoom):
+    """Our own drawing: a figure pushing a scribbled boulder up a slope."""
+    if alpha < 0.01:
+        return
+    c.save()
+    c.translate(CX, 1050)
+    c.scale(zoom, zoom)
+    sl0, sl1 = (-420, 380), (420, -120)
+    c.drawLine(*sl0, *sl1, paint(WHITE, 0.7 * alpha, 4))
+    for k in range(30):        # slope hatching
+        u = k / 30
+        x0 = sl0[0] + (sl1[0] - sl0[0]) * u
+        y0 = sl0[1] + (sl1[1] - sl0[1]) * u
+        c.drawLine(x0, y0, x0 - 25, y0 + 40, paint(WHITE, 0.18 * alpha, 2))
+    bx, by, br = 90, -150, 170
+    r = np.random.default_rng(11)
+    for k in range(140):
+        a0 = r.uniform(0, 6.28)
+        rr = br * math.sqrt(r.uniform(0.2, 1.0))
+        p = skia.Path()
+        p.moveTo(bx + math.cos(a0) * rr, by + math.sin(a0) * rr)
+        a1 = a0 + r.uniform(0.6, 2.4)
+        rr2 = br * math.sqrt(r.uniform(0.2, 1.0))
+        p.quadTo(bx + math.cos((a0 + a1) / 2) * br * 1.1, by + math.sin((a0 + a1) / 2) * br * 1.1,
+                 bx + math.cos(a1) * rr2, by + math.sin(a1) * rr2)
+        c.drawPath(p, paint(WHITE, 0.32 * alpha, 1.6))
+    c.drawCircle(bx, by, br, paint(WHITE, 0.6 * alpha, 3))
+    cam = Camera()
+    cam.s, cam.sx, cam.sy, cam.wx, cam.wy = 115, -165, 155, 0.0, 0.0
+    push = 0.03 * math.sin(t * 3)
+    j = build_pose(np.array([0.0, 1.25 + push]), np.array([0.55, 0.42]), np.array([-0.75, -0.25]),
+                   0.95, 1.75, 1.6, 0.25, 0.35, -0.35)
+    draw_body(c, j, cam, WHITE, alpha, 0.55)
+    c.restore()
 
 
 def render(stills=None):
@@ -116,257 +184,296 @@ def render(stills=None):
     dirt = Particles(3)
     rng = np.random.default_rng(6)
     cam = Camera()
-    cam.sx, cam.wx = CX, 0.0
+    cam.sx, cam.wx, cam.s, cam.wy, cam.sy = CX, 0.0, 82.0, 1.0, 900.0
     for fi in range(v.n):
         t = fi * dt
         D = {n: depth(n, t) for n in ORDER}
-        dO = D["OBSESSION"]
-        if t >= HIT:
-            dO = DIAMOND - 1.0
+        inter = INTER[0] <= t < INTER[1]
         # ---------------- events
-        for k, nt in enumerate(NAMES_T):
-            if t >= nt:
-                log.once(f"name{k}", t, "name", k)
-        if t >= HOOK_PAN[0]:
-            log.once("pan", t, "pan")
+        if t >= 0.05:
+            log.once("dig_word", t, "dig_word")
         for n in ORDER:
-            sp_k = int((t - GO) * (2.4 if n != "OBSESSION" or t > RISE else 1.6)) if t >= GO else -1
-            active = t >= GO and (n not in STOP or t < STOP[n][0]) and not (n == "OBSESSION" and (DOUBT[0] + 0.6 < t < RISE or t >= HIT))
-            if active and sp_k >= 0:
-                fast = n == "OBSESSION" and t > RISE
-                if fast:
-                    sp_k = int((t - RISE) * (2 + 6 * smoothstep(RISE, RISE + 2, t)))
-                log.once(f"dig{n}{sp_k}", t, "dig", (ORDER.index(n), fast))
-                if rng.random() < 0.5:
-                    x = XS[n]
-                    dirt.emit(np.array([[x + 0.3, -D[n] + 0.1]]) + rng.normal(0, 0.1, (3, 2)), vel=(0.0, 2.5 if not fast else 4), spread=0.8,
-                              life=(0.3, 0.6), size=(0.03, 0.06))
+            stopped = n in STOP and t >= STOP[n][0]
+            ego_done = n == "EGO" and t >= EGO_GOLD
+            obs_idle = n == "OBSESSION" and DOUBT[0] + 0.3 < t < INTER[1]
+            if t >= GO and not stopped and not ego_done and not obs_idle and not (n == "OBSESSION" and t >= BOTTOM_T):
+                fast = n == "OBSESSION" and t >= INTER[1]
+                k = int((t - GO) * (6.5 if fast else 2.2))
+                log.once(f"dig{n}{k}", t, "dig", (ORDER.index(n), fast))
+                if rng.random() < (0.7 if fast else 0.4):
+                    dirt.emit(np.array([[XS[n] + 0.3, -D[n] + 0.1]]) + rng.normal(0, 0.1, (3, 2)), vel=(0.0, 4 if fast else 2.5),
+                              spread=0.8, life=(0.3, 0.6), size=(0.03, 0.06))
         for n, (ts, d) in STOP.items():
             if t >= ts:
                 log.once(f"out{n}", t, "out", ORDER.index(n))
         for k, (tt, s_) in enumerate(DOUBTS):
             if t >= tt:
                 log.once(f"doubt{k}", t, "doubt", k)
-        if t >= KNEEL[0]:
-            log.once("kneel", t, "kneel")
-        if t >= RISE - 0.6:
-            log.once("rise", t, "rise")
-        if t >= HIT:
-            log.once("hit", t, "hit")
-        if t >= PULL:
-            log.once("pull", t, "pull")
+        if t >= RED_T:
+            log.once("red", t, "red")
+        if t >= INTER[0]:
+            log.once("inter", t, "inter")
+        if t >= 13.75:
+            log.once("youvsyou", t, "youvsyou")
+        if t >= 14.6:
+            log.once("sisy", t, "sisy")
+        if t >= INTER[1]:
+            log.once("back", t, "back")
+        if t >= EGO_GOLD:
+            log.once("gold", t, "gold")
+        if t >= PASS:
+            log.once("pass", t, "pass")
+        if t >= BOTTOM_T:
+            log.once("bottom", t, "bottom")
         dirt.step(dt)
 
         # ---------------- camera
-        if t < HOOK_PAN[0]:
-            wy, s = -DIAMOND + 0.4, S0
-        elif t < HOOK_PAN[1]:
-            u = smoothstep(*HOOK_PAN, t)
-            wy, s = (-DIAMOND + 0.4) * (1 - u) + (-0.6) * u, S0
-        elif t < PULL:
-            wy, s = min(-0.6, -dO + 1.8), S0
+        dO = D["OBSESSION"]
+        if t < 2.6:
+            ty, s, sy = 1.0, 82.0, 900.0                                  # wide on the surface
+        elif t < 4.2:
+            ty, s, sy = -1.6, 105.0, 900.0                                # on motivation / talent
+        elif t < 6.8:
+            ty, s, sy = -3.6, 105.0, 900.0
+        elif t < PASS + 0.4:
+            ty, s, sy = -dO + 2.4, 105.0, 900.0
         else:
-            u = smoothstep(PULL, PULL + 1.6, t)
-            s_full = (1560 - 900) / (DIAMOND + 2.0)
-            wy_full = -(DIAMOND + 2.0) / 2 + 0.6
-            wy = (-dO + 1.8) * (1 - u) + wy_full * u
-            s = math.exp(math.log(S0) * (1 - u) + math.log(s_full) * u)
-        cam.wy, cam.s = wy, s
-        cam.sy = 1060.0 if t < PULL else 1060 + 170 * smoothstep(PULL, PULL + 1.6, t)
+            u = smoothstep(PASS + 0.4, BOTTOM_T - 0.4, t)
+            s_full = (1560 - 380) / (PILE + 3.0)
+            ty = (-dO + 2.4) * (1 - u) + (-(PILE + 3) / 2 + 1.0) * u
+            s = math.exp(math.log(105) * (1 - u) + math.log(s_full) * u)
+            sy = 900 * (1 - u) + 980 * u
+        k_ = 0.12 if t > 2.6 else 1.0
+        cam.wy += (ty - cam.wy) * k_
+        cam.s += (s - cam.s) * (0.12 if t < PASS + 0.4 else 1.0)
+        cam.sy += (sy - cam.sy) * k_
+        cam.wx = 0.0 if t < 6.8 else 0.35
         if not v.wants(fi):
             continue
 
-        # ================================================= draw
         v.clear()
         e, f_, tc, hc = v.env.canvas, v.fig.canvas, v.txt.canvas, v.hero.canvas
-        # ground block
-        l, top = cam.pt((-4.1, 0))
-        r, bot = cam.pt((4.1, -DIAMOND - 3))
-        e.drawRect(skia.Rect(max(60, l), top, min(W - 60, r), bot), paint(WHITE, 0.055))
-        for k in range(1, 26):
-            y = -k * 1.3
-            a0 = cam.pt((-4.1, y))
-            a1 = cam.pt((4.1, y + 0.08 * math.sin(k)))
-            e.drawLine(max(60, a0[0]), a0[1], min(W - 60, a1[0]), a1[1], paint(WHITE, 0.035, 2))
-        e.drawLine(max(60, l), top, min(W - 60, r), top, paint(WHITE, 0.7, 3))
-        # shafts (black, dug)
-        for n in ORDER:
-            x = XS[n]
-            d = D[n] if n != "OBSESSION" else dO
-            sl, st_ = cam.pt((x - 0.55, 0.02))
-            sr, sb = cam.pt((x + 0.55, -d - 0.05))
-            if sb > st_:
-                e.drawRect(skia.Rect(sl, st_, sr, sb), paint((0, 0, 0), 1.0))
-                e.drawLine(sl, st_, sl, sb, paint(WHITE, 0.12, 2))
-                e.drawLine(sr, st_, sr, sb, paint(WHITE, 0.12, 2))
-                if n == "EGO" and d > 7.0:          # a small cave where he found the gold
-                    cl, ct = cam.pt((x - 1.45, -d + 1.25))
-                    cr, cb = cam.pt((x + 1.45, -d - 0.05))
+        if not inter:
+            # ground
+            l, top = cam.pt((-4.2, 0))
+            r, bot = cam.pt((4.2, -PILE - 4))
+            e.drawRect(skia.Rect(max(60, l), top, min(W - 60, r), bot), paint(WHITE, 0.07))
+            for k in range(1, 40):
+                y = -k * 1.0
+                a0, a1 = cam.pt((-4.2, y)), cam.pt((4.2, y + 0.06 * math.sin(k * 1.7)))
+                e.drawLine(max(60, a0[0]), a0[1], min(W - 60, a1[0]), a1[1], paint(WHITE, 0.03, 2))
+            e.drawLine(max(60, l), top, min(W - 60, r), top, paint(WHITE, 0.55, 3))
+            # shafts
+            for n in ORDER:
+                x = XS[n]
+                d = D[n]
+                sl, st_ = cam.pt((x - 0.55, 0.02))
+                sr, sb = cam.pt((x + 0.55, -d - 0.05))
+                if sb > st_:
+                    e.drawRect(skia.Rect(sl, st_, sr, sb), paint((0, 0, 0), 1.0))
+                if n == "EGO" and t >= EGO_GOLD - 0.3:
+                    cl, ct = cam.pt((x - 1.4, -d + 1.2))
+                    cr, cb = cam.pt((x + 1.4, -d - 0.05))
                     e.drawRoundRect(skia.Rect(cl, ct, cr, cb), 30, 30, paint((0, 0, 0), 1.0))
-        # diamond
-        gx, gy = cam.pt((XS["OBSESSION"] + 0.1, -DIAMOND + 0.1))
-        ga = 1.0
-        gem(f_, gx, gy, 0.55 * cam.s * (1 + 0.5 * (t >= HIT) * math.exp(-(t - HIT) * 3)), ga, t)
-        f_.drawCircle(gx, gy, 1.2 * cam.s, paint(WHITE, 0.05 + 0.1 * (t >= HIT)))
-        dirt.draw(f_, cam, WHITE, GREY)
-
-        # figures
-        for i, n in enumerate(ORDER):
-            x = XS[n]
-            d = D[n] if n != "OBSESSION" else dO
-            y = -d
-            stopped = n in STOP and t >= STOP[n][0]
-            col = WHITE
-            alpha = 1.0
-            if t < GO:
-                j = stand(x - 0.1, 0.0, 0.3, 0.25, 0.4, 0.4, 0.0)
-                j = {k: vv + [0, 0.0] for k, vv in j.items()}
-                hand = (j["hand1"] + j["hand2"]) / 2
-                tip = hand + np.array([0.15, -1.2])
-            elif stopped:
-                w = smoothstep(STOP[n][0], STOP[n][0] + 0.4, t)
-                jd, hand, tip, _ = dig_pose(x, y, t, 0.0)
-                if n == "MOTIVATION":
-                    js = sit(x - 0.35, 0.05, t, 0.8)
-                    js = {k: vv + [0, y] for k, vv in js.items()}
-                elif n == "TALENT":
-                    js = sit(x - 0.35, 0.05, t, 0.1)
-                    js = {k: vv + [0, y] for k, vv in js.items()}
-                    js["hand1"] = js["shoulder"] + [0.45, 0.35]
+            # diamond pile at the very bottom
+            px, py = cam.pt((XS["OBSESSION"], -PILE))
+            diamond_pile(f_, px, py, 4.2 * cam.s, 1.0, t)
+            dirt.draw(f_, cam, WHITE, GREY)
+            # figures
+            for i, n in enumerate(ORDER):
+                x = XS[n]
+                y = -D[n]
+                col, alpha = WHITE, 1.0
+                tip = None
+                if t < GO:
+                    wave = 0.4 + 0.3 * math.sin(t * 6 + i) if n == "OBSESSION" else 0.3
+                    j = stand(x - 0.1, 0.0, 0.3, 0.25, 0.4, 0.4, 0.0)
+                    tip = (j["hand1"] + j["hand2"]) / 2 + np.array([0.15, -1.2])
+                elif n in STOP and t >= STOP[n][0]:
+                    w = smoothstep(STOP[n][0], STOP[n][0] + 0.4, t)
+                    jd, _ = dig_pose(x, y, t, 0)
+                    if n == "MOTIVATION":
+                        js = {k: vv + [0, y] for k, vv in sit(x - 0.35, 0.05, t, 0.95).items()}
+                    else:
+                        js = {k: vv + [0, y] for k, vv in sit(x - 0.35, 0.05, t, 0.15).items()}
+                        js["hand1"] = js["shoulder"] + [0.45, 0.3]
+                    j = blend(jd, js, w)
+                    col, alpha = mix(WHITE, GREY, 0.6 * w), 1 - 0.3 * w
+                elif n == "EGO" and t >= EGO_GOLD:
+                    jd, _ = dig_pose(x, y, t, 0)
+                    j = blend(jd, lie_relax(x - 0.15, y + 0.2), smoothstep(EGO_GOLD + 0.4, EGO_GOLD + 0.9, t))
+                    col = mix(WHITE, GREY, 0.4)
+                elif n == "OBSESSION" and DOUBT[0] <= t < INTER[1]:
+                    jd, tip = dig_pose(x, y, t, 0)
+                    w = smoothstep(DOUBT[0], DOUBT[0] + 0.5, t)
+                    j = blend(jd, {k: vv + [0, y] for k, vv in sad(x, t).items()}, w)
+                    col = mix(WHITE, RED, smoothstep(RED_T - 0.3, RED_T + 0.4, t))
+                    tip = None
+                elif n == "OBSESSION" and t >= BOTTOM_T:
+                    j = {k: vv + [0, y] for k, vv in stand(x, -0.05, 2.75, 2.95, 0.15, 0.1, -0.25).items()}
+                    col = RED
                 else:
-                    js = lie_relax(x - 0.15, y + 0.15)
-                j = blend(jd, js, w)
-                col = mix(WHITE, GREY, 0.6 * w)
-                alpha = 1 - 0.25 * w
-                tip = hand + np.array([0.0, -1.0])
-            elif n == "OBSESSION" and t >= DOUBT[0] and t < RISE:
-                jd, hand, tip, _ = dig_pose(x, y, t, 0.0)
-                w = smoothstep(DOUBT[0], DOUBT[0] + 0.5, t)
-                j = blend(jd, {k: vv + [0, y] for k, vv in sad(x, t).items()}, w * (1 - smoothstep(*KNEEL, t)))
-                kx = {k: vv + [0, y] for k, vv in kneel(x - 0.35, t, 0.9).items()}
-                j = blend(j, kx, smoothstep(*KNEEL, t))
-                col = mix(WHITE, RED, 0.6 * w)
-            elif n == "OBSESSION" and t >= HIT:
-                jd, hand, tip, _ = dig_pose(x, y, t, 1.0)
-                j = blend(jd, {k: vv + [0, y] for k, vv in stand(x, -0.05, 2.75, 2.95, 0.15, 0.1, -0.25).items()},
-                          smoothstep(HIT + 0.2, HIT + 0.6, t))
-                col = mix(WHITE, RED, 0.25)
-            else:
-                speed = 1.0 if (n == "OBSESSION" and t > RISE) else 0.3
-                j, hand, tip, _ = dig_pose(x, y, t, speed, i * 1.7)
-                if n == "OBSESSION" and t > RISE:
-                    col = mix(WHITE, RED, 0.35)
-            draw_body(hc, j, cam, col, alpha)
-            # shovel
-            if not (n == "EGO" and stopped) and not (n == "OBSESSION" and KNEEL[0] < t < RISE):
-                hand = (j["hand1"] + j["hand2"]) / 2
-                hc.drawLine(*cam.pt(hand + [0, 0.25]), *cam.pt(tip), paint(col, alpha, max(2, 0.05 * cam.s)))
-                bl = tip + np.array([0.0, -0.12])
-                hc.drawLine(*cam.pt(tip + [-0.1, 0]), *cam.pt(bl + [0, -0.08]), paint(col, alpha, max(3, 0.12 * cam.s)))
-            # loot
-            if n == "TALENT" and stopped:
-                cx_, cy_ = cam.pt(j["hand1"] + [0.05, 0.1])
-                pop = 1 + 0.5 * math.exp(-(t - STOP[n][0]) * 6)
-                f_.drawCircle(cx_, cy_, 0.13 * cam.s * pop, paint(RED, 1.0))
-                f_.drawCircle(cx_, cy_, 0.07 * cam.s * pop, paint((0, 0, 0), 1.0, 2))
-            if n == "EGO" and t >= STOP[n][0] - 0.2:
-                pr = np.random.default_rng(9)
-                for k in range(26):
-                    px = x + pr.uniform(-0.5, 0.5)
-                    py = y + 0.08 + abs(pr.normal(0, 0.12)) * (1 - abs(px - x) * 1.6)
-                    cx_, cy_ = cam.pt((px, py))
-                    f_.drawCircle(cx_, cy_, 0.08 * cam.s, paint(RED, 0.9))
-            # labels: name above head; OUT when stopped
-            if t >= NAMES_T[i]:
-                pop = 1 + 0.5 * math.exp(-(t - NAMES_T[i]) * 8)
-                hx, hy = cam.pt(j["head"])
-                la = 1 - smoothstep(P1 - 0.5, P1, t)
-                if t >= PULL:
-                    la *= 0.0
-                draw_spaced(tc, n, hx, hy - 0.55 * cam.s, font(22 * pop, "Inter-Bold"), 4,
-                            paint(RED if n == "OBSESSION" else WHITE, la))
-                if stopped:
-                    po = 1 + 0.5 * math.exp(-(t - STOP[n][0]) * 8)
-                    draw_spaced(tc, "OUT", hx, hy - 0.55 * cam.s - 30, font(22 * po, "InterDisplay-Black"), 4, paint(RED, la))
-        # doubts on the walls
-        for k, (tt, s_) in enumerate(DOUBTS):
-            age = t - tt
-            if 0 <= age and t < RISE + 0.2:
-                a = smoothstep(0, 0.1, age) * (1 - smoothstep(RISE - 0.2, RISE + 0.2, t))
-                pop = 1 + 0.4 * math.exp(-age * 10)
-                wx_, wy_ = cam.pt((XS["OBSESSION"] - 1.2 + 0.4 * (k % 2), -dO + 2.6 - 0.75 * k))
-                draw_spaced(tc, s_, max(wx_, 300), wy_, font(30 * pop, "InterDisplay-Black"), 2, paint(RED, a))
-        # rise ring
-        if RISE - 0.05 <= t < RISE + 0.75:
-            age = t - RISE + 0.05
-            cx_, cy_ = cam.pt((XS["OBSESSION"], -dO + 1.2))
-            f_.drawCircle(cx_, cy_, (0.5 + 3.5 * ease_out(age / 0.8)) * cam.s, paint(RED, 0.6 * (1 - age / 0.8), 6))
-
-        dm = int(round((dO if t < HIT else DIAMOND) * M_PER_U))
-        hud(tc, "DEPTH", f"{dm}M", smoothstep(GO - 0.2, GO + 0.2, t) * (1 - 0.6 * smoothstep(P1 - 0.3, P1 + 0.3, t)), t >= HIT)
-        punch(tc, t, [(P1, [("EVERYONE STOPS SOMEWHERE.", WHITE)], 620, 52),
-                      (P2, [("OBSESSION", RED)], 750, 120),
-                      (P3, [("DOESN'T.", WHITE)], 890, 150)])
-        flash = math.exp(-(t - HIT) * 2.5) * 1.2 if t >= HIT else 0.0
-        pdim = 0.6 * smoothstep(P1 - 0.3, P1, t)
-        dark = 0.35 * smoothstep(DOUBT[0], DOUBT[0] + 0.8, t) * (1 - smoothstep(RISE - 0.2, RISE + 0.3, t))
-        v.compose(fi, t, flash=flash, glow=0.4 * (t > RISE), dim=max(pdim, dark), white=0.08 * flash)
+                    fast = n == "OBSESSION" and t >= INTER[1]
+                    j, tip = dig_pose(x, y, t, 1.0 if fast else 0.3, i * 1.7)
+                    if n == "OBSESSION" and t >= INTER[1]:
+                        col = RED
+                        for k in range(5):             # speed scratches above him
+                            sx, sy = cam.pt((x - 0.35 + 0.17 * k, y + 3.0 + 0.3 * math.sin(t * 20 + k)))
+                            hc.drawLine(sx, sy, sx, sy - 70, paint(RED, 0.4, 2))
+                draw_body(hc, j, cam, col, alpha, 0.2 if n == "OBSESSION" and t >= INTER[1] else 0.0)
+                if tip is not None:
+                    hand = (j["hand1"] + j["hand2"]) / 2
+                    hc.drawLine(*cam.pt(hand + [0, 0.25]), *cam.pt(tip), paint(col, alpha, max(2, 0.05 * cam.s)))
+                    hc.drawLine(*cam.pt(tip + [-0.1, 0]), *cam.pt(tip + [0, -0.2]), paint(col, alpha, max(3, 0.12 * cam.s)))
+                if n == "TALENT" and t >= STOP[n][0]:
+                    cx_, cy_ = cam.pt(j["hand1"] + [0.05, 0.1])
+                    f_.drawCircle(cx_, cy_, 0.15 * cam.s, paint(RED, 1.0))
+                    f_.drawCircle(cx_, cy_, 0.5 * cam.s, paint(RED, 0.12))
+                if n == "EGO" and t >= EGO_GOLD - 0.3:
+                    pr = np.random.default_rng(9)
+                    for k in range(60):
+                        gx_ = x + pr.uniform(-1.3, 1.3)
+                        gy_ = y + 0.06 + abs(pr.normal(0, 0.16)) * (1 - abs(gx_ - x) / 1.4)
+                        f_.drawCircle(*cam.pt((gx_, gy_)), 0.08 * cam.s, paint(RED, 0.9))
+                    if t >= EGO_GOLD + 0.2:
+                        hx, hy = cam.pt(j["head"] + [0.1, 0.6])
+                        pop = 1 + 0.6 * math.exp(-(t - EGO_GOLD - 0.2) * 8)
+                        draw_heart(f_, hx, hy, 16 * pop, 0.95)
+                # labels
+                if t < BOTTOM_T - 0.6:
+                    hx, hy = cam.pt(j["head"])
+                    lab_col = RED if n == "OBSESSION" else WHITE
+                    draw_spaced(tc, n, hx, hy - 0.5 * cam.s, sfont(20, MONO), 2, paint(lab_col, 0.9))
+                    if n in STOP and t >= STOP[n][0]:
+                        po = 1 + 0.5 * math.exp(-(t - STOP[n][0]) * 8)
+                        draw_spaced(tc, "OUT", hx, hy - 0.5 * cam.s - 26, sfont(20 * po, MONO), 2, paint(RED, 0.95))
+            # doubts on the wall
+            for k, (tt, s_) in enumerate(DOUBTS):
+                if tt <= t < INTER[0]:
+                    pop = 1 + 0.3 * math.exp(-(t - tt) * 10)
+                    wx_, wy_ = cam.pt((XS["OBSESSION"] + (-1.4 if k != 1 else 1.3), -D["OBSESSION"] + 2.6 + 0.5 * k))
+                    f = sfont(22 * pop, MONO)
+                    wdt = spaced_width(s_, f, 1) + 20
+                    rr = skia.Rect(wx_ - wdt / 2, wy_ - 24, wx_ + wdt / 2, wy_ + 8)
+                    tc.drawRect(rr, paint((0.8, 0.8, 0.82), 0.9))
+                    tc.drawString(s_, wx_ - wdt / 2 + 10, wy_ - 2, f, paint((0, 0, 0), 1.0))
+            # "DIG!"
+            if t < 1.6:
+                a = smoothstep(0.0, 0.15, t) * (1 - smoothstep(1.2, 1.6, t))
+                pop = 1 + 0.15 * math.exp(-t * 8)
+                draw_spaced(tc, "DIG!", CX, 470, sfont(110 * pop, MONO), 14, paint(WHITE, a))
+            # pass flash
+            if PASS <= t < PASS + 0.35:
+                f_.drawRect(skia.Rect(0, 0, W, H), paint(RED, 0.1 * (1 - (t - PASS) / 0.35)))
+        else:
+            # =========== INTERLUDE ===========
+            u = t - INTER[0]
+            if u < 1.75:                       # dictionary card, slow zoom, then into the word
+                z = 1 + 0.08 * u + 2.5 * smoothstep(1.35, 1.75, u) ** 2
+                a = smoothstep(0, 0.2, u)
+                c = tc
+                c.save()
+                c.translate(300, 670)
+                c.scale(z, z)
+                c.translate(-300, -670)
+                draw_spaced(c, "obsessed", 300, 700, sfont(88), 1, paint(WHITE, a))
+                c.drawString("[əbˈsɛst]  adjective • English", 160, 760, sfont(30, SERIF_I), paint(WHITE, 0.75 * a))
+                c.drawLine(160, 800, 500, 800, paint(WHITE, 0.6 * a, 2))
+                lines = ["what the comfortable call the committed.",
+                         "one thought, every single day,",
+                         "until it becomes real.",
+                         "",
+                         "obsession beats talent. every time."]
+                for k, ln in enumerate(lines):
+                    c.drawString(ln, 160, 860 + 44 * k, sfont(30), paint(WHITE, 0.85 * a))
+                c.restore()
+            elif u < 2.6:                      # YOU VS YOU, huge, zooming
+                uu = u - 1.75
+                z = 1.6 - 0.5 * ease_out(uu / 0.85)
+                a = smoothstep(0, 0.12, uu) * (1 - smoothstep(0.7, 0.85, uu))
+                tc.save()
+                tc.translate(CX, 960)
+                tc.scale(z, z)
+                draw_spaced(tc, "YOU VS YOU", 0, 40, sfont(150), 2, paint(WHITE, a))
+                tc.restore()
+            else:                              # IT'S YOU VS YOU + Sisyphus
+                uu = u - 2.6
+                a = smoothstep(0, 0.2, uu) * (1 - smoothstep(1.0, 1.3, uu))
+                draw_spaced(tc, "IT'S YOU VS YOU", CX, 560, sfont(70), 2, paint(WHITE, a))
+                sisyphus(f_, t, a, 0.95 + 0.06 * uu)
+        if t >= BOTTOM_T - 0.2:
+            pass
+        # punchline
+        for t0, txt, col, y in ((P1, "THEY ALL STOPPED.", WHITE, 820), (P2, "OBSESSION KEPT DIGGING.", RED, 880)):
+            if t >= t0:
+                a = smoothstep(t0, t0 + 0.4, t)
+                draw_spaced(tc, txt, CX, y, sfont(46, MONO), 6, paint(col, a))
+        flash = math.exp(-(t - BOTTOM_T) * 2.5) if t >= BOTTOM_T else 0.0
+        dark = 0.4 * smoothstep(DOUBT[0], RED_T, t) * (1 - smoothstep(INTER[1] - 0.1, INTER[1] + 0.3, t)) if not inter else 0.0
+        v.compose(fi, t, flash=flash, glow=0.3 * (t >= INTER[1]), dim=dark)
     v.finish(build_audio, log.events)
 
 
 def build_audio(events, path):
     m = sfx.Mixer(DUR)
-    m.add_bed(sfx.drone(DUR, rise_at=HIT), gain=0.45, fade_in=0.5, fade_out=2.5, stop=DUR)
-    m.add(0.1, sfx.sparkle(1.2, 50, 1), 0.6, 0.3, 0.6)
-    m.add(0.2, sfx.chime(1320, 0.3), 0.5, 0.3, 0.6)
+    bed = sfx.drone(DUR, rise_at=BOTTOM_T)
+    tt = np.arange(len(bed)) / sfx.SR
+    bed *= 1 - 0.85 * ((tt > INTER[0]) & (tt < INTER[1]))   # near silence for the interlude
+    m.add_bed(bed, gain=0.45, fade_in=0.5, fade_out=2.5, stop=DUR)
     for t, kind, _, extra in events:
-        if kind == "pan":
-            m.add(t, sfx.whoosh(HOOK_PAN[1] - HOOK_PAN[0] + 0.2, 150, 5000, 0.75, seed=2), 0.9, 0, 0.3)
-        elif kind == "name":
-            m.add(t, sfx.text_hit(extra), 0.55 + 0.1 * (extra == 3), (-0.6 + 0.4 * extra), 0.4)
+        if kind == "dig_word":
+            m.add(t, sfx.text_hit(5), 0.8, 0, 0.4)
         elif kind == "dig":
             idx, fast = extra
-            if idx == 3:
-                m.add(t, sfx.dig(int(t * 100), 1.2 if fast else 0.9), 0.7, 0.45, 0.25)
+            pan = -0.6 + 0.4 * idx
+            if idx == 2:
+                m.add(t, sfx.dig(int(t * 100), 1.2 if fast else 0.9), 0.7 if fast else 0.55, pan, 0.25)
             else:
-                m.add(t, sfx.dig(int(t * 100) + idx, 0.5), 0.35, -0.6 + 0.4 * idx, 0.2)
+                m.add(t, sfx.dig(int(t * 100) + idx, 0.5), 0.3, pan, 0.2)
         elif kind == "out":
             m.add(t, sfx.power_down(1.0), 0.3, -0.6 + 0.4 * extra, 0.3)
             if extra == 1:
                 m.add(t, sfx.chime(990, 0.3), 0.6, -0.2, 0.5)
-            if extra == 2:
-                for k in range(8):
-                    m.add(t + k * 0.05, sfx.chime(900 + 70 * k, 0.15), 0.4, 0.2, 0.4)
         elif kind == "doubt":
-            m.add(t, sfx.glitch(extra), 0.6, 0.3, 0.2)
-            m.add(t, sfx.lock_on(extra), 0.45, 0.3, 0.3)
-        elif kind == "kneel":
-            m.add(t, sfx.body_fall() * 0.5, 0.6, 0.4, 0.3)
-            m.add(t + 0.3, sfx.heartbeat(), 0.8, 0, 0.3)
-            m.add(t + 1.0, sfx.heartbeat(), 0.9, 0, 0.3)
-        elif kind == "rise":
-            m.add(t, sfx.power_up(70), 1.0, 0.3, 0.4)
-            m.add(t + 0.55, sfx.boom(2.0), 0.6, 0, 0.4)
-        elif kind == "hit":
+            m.add(t, sfx.tick(900, 0.6), 0.6, 0.0, 0.2)
+            m.add(t, sfx.punch_block(extra), 0.5, 0.0, 0.3)
+        elif kind == "red":
+            m.add(t, sfx.heartbeat(), 0.8, 0, 0.3)
+            m.add(t + 0.75, sfx.heartbeat(), 0.85, 0, 0.3)
+        elif kind == "inter":
+            m.add(t, sfx.whoosh(0.5, 300, 6000, 0.4, seed=9), 0.4, 0, 0.5)
+            m.add(t + 0.1, sfx.chime(440, 0.3), 0.5, 0, 0.7)
+        elif kind == "youvsyou":
+            m.add(t, sfx.boom(2.5), 0.8, 0, 0.6)
+            m.add(t, sfx.text_hit(2), 0.7, 0, 0.6)
+        elif kind == "sisy":
+            m.add(t, sfx.riser(1.3), 0.5, 0, 0.4)
+            m.add(t, sfx.heartbeat(), 0.7, 0, 0.3)
+        elif kind == "back":
+            m.add(t, sfx.power_up(70), 1.0, 0, 0.4)
+            m.add(t + 0.5, sfx.boom(2.0), 0.6, 0, 0.4)
+        elif kind == "gold":
+            for k in range(10):
+                m.add(t + k * 0.04, sfx.chime(900 + 60 * k, 0.15), 0.4, 0.5, 0.4)
+        elif kind == "pass":
+            m.add(t, sfx.whoosh(0.5, 300, 8000, 0.4, seed=4), 0.6, 0, 0.3)
+            m.add(t, sfx.punch_hit(3, 1.0), 0.6, 0, 0.3)
+        elif kind == "bottom":
             m.add(t, sfx.boom(4.5), 1.0, 0, 0.5)
-            m.add(t, sfx.shatter(3, 1.2), 0.6, 0.3, 0.5)
-            m.add(t, sfx.sparkle(2.4, 120, 4), 0.8, 0.3, 0.6)
+            m.add(t, sfx.sparkle(2.4, 120, 4), 0.8, 0, 0.6)
             for k, f in enumerate((660, 880, 1320)):
                 m.add(t + 0.05 * k, sfx.chime(f, 0.3), 0.6, 0, 0.6)
-        elif kind == "pull":
-            m.add(t, sfx.whoosh(1.4, 100, 2500, 0.7, seed=13), 0.45, 0, 0.4)
-    m.add(HIT - 2.5, sfx.riser(2.5), 0.55, 0, 0.3)
+    m.add(BOTTOM_T - 2.5, sfx.riser(2.5), 0.55, 0, 0.3)
     m.add(P1, sfx.text_hit(1), 0.5, 0, 0.4)
-    m.add(P2, sfx.text_hit(2), 0.75, 0, 0.4)
-    m.add(P3, sfx.text_hit(3), 0.95, 0, 0.5)
-    m.add(P3, sfx.boom(2.0), 0.45, 0, 0.4)
+    m.add(P2, sfx.text_hit(3), 0.9, 0, 0.5)
+    m.add(P2, sfx.boom(2.0), 0.4, 0, 0.4)
     m.render(path)
 
 
 if __name__ == "__main__":
     print(f"duration {DUR:.2f}")
     if "--stills" in sys.argv:
-        ts = [0.6, 1.8, 3.8, 5.0, 6.5, 8.0, 9.5, 11.6, 12.8, 14.2, 16.5, HIT + 0.3, PULL + 1.8, P3 + 1.0]
+        ts = [0.5, 2.0, 3.8, 5.8, 8.0, 10.2, 11.4, 12.6, 13.6, 14.2, 15.2, 17.0, 18.9, 19.7, 21.0, 22.4, 24.5]
         render(stills=sorted(set(int(x * FPS) for x in ts)))
     else:
         render()
