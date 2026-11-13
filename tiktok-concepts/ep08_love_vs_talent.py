@@ -52,9 +52,12 @@ GLITCH = (8.3, 9.2)
 RISE = (9.2, 9.8)
 CUT1 = 10.0
 MONT_A, MONT_REP, MONT_N = 10.2, 0.55, 12
-CUT2 = MONT_A + MONT_REP * MONT_N + 0.1
-WALK2 = (CUT2 + 0.2, CUT2 + 2.6)
-CROSS = WALK2[1] + 0.2
+MONT_END = MONT_A + MONT_REP * MONT_N
+CUT2 = 999.0                      # no second cut any more: everything happens in the gym
+EX_RUN = (MONT_END + 0.8, MONT_END + 2.0)
+WALK2 = EX_RUN
+CROSS = EX_RUN[1] + 0.5
+GIRL_AT = [0.22, 0.38, 0.52, 0.66, 0.8]   # growth thresholds where each girl appears
 P1, P2, P3 = CROSS + 0.9, CROSS + 1.8, CROSS + 2.3
 DUR = P3 + 3.0
 N = int(DUR * FPS)
@@ -222,7 +225,7 @@ class Rain:
 
 
 GIRLS = [(-3.0, 1), (-2.1, 1), (1.4, -1), (2.4, -1), (3.2, -1)]     # x, facing (back row)
-EX_X = 0.75
+EX_X = 1.65
 
 
 def render(stills=None):
@@ -289,16 +292,26 @@ def render(stills=None):
                 j = blend_pose(j, up, smoothstep(RISE[0], RISE[1], t))
         elif act == 2:
             hx = 0.0
-            k = int((t - MONT_A) // MONT_REP) if t >= MONT_A else -1
-            u = ((t - MONT_A) % MONT_REP) / MONT_REP if t >= MONT_A else 0.0
-            c_ = math.sin(math.pi * u) if k >= 0 else 0.0
-            day = int(round(365 ** ((k + 1) / MONT_N))) if k >= 0 else 1
-            g = clamp((k + u) / MONT_N) if k >= 0 else 0.0
+            if t < MONT_END:
+                k = int((t - MONT_A) // MONT_REP) if t >= MONT_A else -1
+                u = ((t - MONT_A) % MONT_REP) / MONT_REP if t >= MONT_A else 0.0
+                c_ = math.sin(math.pi * u) if k >= 0 else 0.0
+                day = int(round(365 ** ((k + 1) / MONT_N))) if k >= 0 else 1
+                g = clamp((k + u) / MONT_N) if k >= 0 else 0.0
+            else:
+                k, u, c_, day, g = MONT_N - 1, 1.0, 0.0, 365, 1.0
             a = 0.12 + 0.18 * c_
             b = 0.15 + 2.3 * c_
             j = stand(hx, 0.03 - 0.05 * c_, a, a - 0.04, b, b - 0.05, 0.05)
-            if k >= 0:
+            if t >= MONT_END:
+                cross = stand(hx, -0.04, 0.5, 0.45, 1.9, 1.95, -0.18)
+                j = blend_pose(j, cross, smoothstep(MONT_END + 0.15, MONT_END + 0.55, t))
+                log("bardrop", "bardrop")
+            if k >= 0 and t < MONT_END:
                 log(f"rep{k}", "rep", k)
+            for i, thr in enumerate(GIRL_AT):
+                if g >= thr:
+                    log(f"girl{i}", "girl", i)
         else:
             day = 365
             g = 1.0
@@ -315,6 +328,10 @@ def render(stills=None):
         hcol = mix(WHITE, RED, 0.3 * ego)
         if act == 2:
             bar = (j["hand1"] + j["hand2"]) / 2
+            if t >= MONT_END:
+                u = smoothstep(MONT_END, MONT_END + 0.25, t)
+                b0 = (j["hand1"] + j["hand2"]) / 2
+                bar = np.array([-0.75, 0.26]) * u + b0 * (1 - u)
 
         # ================= HER
         her_vis = act == 1 and t < LEAVE[1] + 0.2
@@ -433,43 +450,52 @@ def render(stills=None):
                     if 0 < age < 1.4:
                         sx, sy = cam.pt((HIM_STOP + 0.4 + 0.5 * math.sin(k * 2.1), 2.6 + age * 0.9))
                         draw_heart(f_, sx, sy, 14, 0.8 * (1 - age / 1.4))
-        if act == 3:
-            # Talent alone in the back, dimmed
-            tb = Camera()
-            tb.s, tb.sx, tb.sy, tb.wx, tb.wy = S * 0.62, CX, GROUND - 130, 0.0, 0.0
-            jt2 = mirror(stand(4.6, 0.15, 0.08, 0.05, 0.2, 0.15, 0.4), 4.6)
-            e.drawLine(80, tb.sy, W - 80, tb.sy, paint(WHITE, 0.12, 1.5))
-            draw_figure(e, jt2, tb, GREY, 0.35, 0.6)
-            tsx, _ = tb.pt((4.6, 0))
-            draw_spaced(tc, "TALENT", tsx, tb.sy + 34, font(22, "Inter-Bold"), 5, paint(GREY, 0.5))
-            # girls
+        if act == 2:
             gc = Camera()
             gc.s, gc.sx, gc.sy, gc.wx, gc.wy = S * 0.8, CX, GROUND - 70, 0.0, 0.0
-            e.drawLine(80, gc.sy, W - 80, gc.sy, paint(WHITE, 0.14, 1.5))
-            for i, (gx, face) in enumerate(GIRLS):
-                reach = smoothstep(WALK2[0] + 0.5 + 0.3 * i, WALK2[0] + 1.0 + 0.3 * i, t)
+            e.drawLine(80, gc.sy, W - 80, gc.sy, paint(WHITE, 0.14 * smoothstep(MONT_A, MONT_A + 1, t), 1.5))
+            g_now = g
+            # Talent alone in the very back, appears with the ex
+            ta_ = smoothstep(EX_RUN[0], EX_RUN[0] + 0.6, t)
+            if ta_ > 0.01:
+                tb = Camera()
+                tb.s, tb.sx, tb.sy, tb.wx, tb.wy = S * 0.62, CX, GROUND - 130, 0.0, 0.0
+                jt2 = mirror(stand(4.6, 0.15, 0.08, 0.05, 0.2, 0.15, 0.4), 4.6)
+                draw_figure(e, jt2, tb, GREY, 0.35 * ta_, 0.6)
+                tsx, _ = tb.pt((4.6, 0))
+                draw_spaced(tc, "TALENT", tsx, tb.sy + 34, font(22, "Inter-Bold"), 5, paint(GREY, 0.5 * ta_))
+            # girls appear one by one behind him while he grows
+            for i, ((gx, face), thr) in enumerate(zip(GIRLS, GIRL_AT)):
+                if g_now < thr:
+                    continue
+                at = thr
+                ga = clamp((g_now - thr) * 8)
+                reach = clamp((g_now - thr) * 4)
                 jg = stand(0.0, 0.12 * reach, 0.2 + 1.2 * reach, 0.15 + 0.8 * reach, 0.2, 0.4, 0.1)
                 jg = {kk: v + [gx, 0] for kk, v in jg.items()}
                 if face < 0:
                     jg = mirror(jg, gx)
-                draw_girl(e, gc, jg, GREY, 0.55, face)
-                pt = WALK2[0] + 0.6 + 0.3 * i
-                if t >= pt:
-                    sx, sy = gc.pt((gx, 3.3))
-                    pop = 1 + 0.5 * math.exp(-(t - pt) * 10)
-                    draw_heart(f_, sx, sy + 5 * math.sin(t * 4 + i), 22 * pop, 0.9)
-            # the ex, on her knees, reaching
-            reach = smoothstep(WALK2[1] - 0.6, WALK2[1], t)
-            jx = kneel(0.0, t, 0.4, reach)
-            jx = {kk: v + [EX_X, 0] for kk, v in jx.items()}
-            jx = mirror(jx, EX_X)
-            draw_girl(f_, cam, jx, WHITE, 0.9, -1)
-            exx, _ = cam.pt((EX_X - 0.1, 0))
-            draw_spaced(tc, "EX", exx, GROUND + 46, f_lab, 6, paint(WHITE, 0.9 * (1 - smoothstep(P1 - 0.5, P1, t))))
-            if t >= WALK2[1]:
-                sx, sy = cam.pt((EX_X - 0.5, 2.6))
-                pop = 1 + 0.5 * math.exp(-(t - WALK2[1]) * 10)
-                draw_heart(f_, sx, sy + 5 * math.sin(t * 4), 26 * pop, 0.95)
+                draw_girl(e, gc, jg, GREY, 0.55 * ga, face)
+                sx, sy = gc.pt((gx, 3.3))
+                pop = 1 + 0.6 * (1 - ga)
+                draw_heart(f_, sx, sy + 5 * math.sin(t * 4 + i), 22 * pop, 0.9 * ga)
+            # the ex runs in from the right and drops to her knees
+            if t >= EX_RUN[0]:
+                u = smoothstep(EX_RUN[0], EX_RUN[1] - 0.15, t)
+                exx_w = 5.2 + (EX_X - 5.2) * u
+                running = run_pose(0.0, (t - EX_RUN[0]) * 11.0, 0.85)
+                kn = kneel(0.0, t, 0.4, smoothstep(EX_RUN[1], EX_RUN[1] + 0.4, t))
+                w = smoothstep(EX_RUN[1] - 0.3, EX_RUN[1] + 0.05, t)
+                jx = blend_pose(running, kn, w)
+                jx = {kk: v + [exx_w, 0] for kk, v in jx.items()}
+                jx = mirror(jx, exx_w)
+                draw_girl(f_, cam, jx, WHITE, 0.95, -1)
+                exl, _ = cam.pt((exx_w - 0.1, 0))
+                draw_spaced(tc, "EX", exl, GROUND + 46, f_lab, 6, paint(WHITE, 0.95 * (1 - smoothstep(P1 - 0.5, P1, t))))
+                if t >= EX_RUN[1]:
+                    sx, sy = cam.pt((EX_X - 0.5, 2.6))
+                    pop = 1 + 0.5 * math.exp(-(t - EX_RUN[1]) * 10)
+                    draw_heart(f_, sx, sy + 5 * math.sin(t * 4), 26 * pop, 0.95)
 
         # him
         if act == 2:
@@ -517,7 +543,7 @@ def render(stills=None):
         ta = smoothstep(0.1, 0.35, t) * (1 - smoothstep(2.2, 2.6, t))
         if ta > 0.01:
             pop = 1 + 0.08 * (1 - ease_out(t / 0.4))
-            draw_spaced(tc, "LOVE", CX, 600, font(f_t.getSize() * 1.1 * pop, "InterDisplay-Black"), 8, paint(WHITE, ta))
+            draw_spaced(tc, "LOVE", CX, 600, font(f_t.getSize() * 1.1 * pop, "InterDisplay-Black"), 8, paint(RED, ta))
             draw_spaced(tc, "VS", CX, 675, font(48, "InterDisplay-Bold"), 10, paint(WHITE, 0.7 * ta))
             draw_spaced(tc, "TALENT", CX, 820, font(f_t.getSize() * pop, "InterDisplay-Black"), 8, paint(WHITE, ta))
 
@@ -609,12 +635,14 @@ def build_audio(events, path):
         elif kind == "day":
             m.add(t, sfx.tick(2400, 0.35), 0.4, 0, 0.05)
         elif kind == "walk2":
-            for k in range(5):
-                m.add(t + 0.1 + k * 0.5, sfx.step_heavy(k), 0.55, 0, 0.3)
-            m.add(t, sfx.heartbeat(), 0.6, 0, 0.3)
-        elif kind == "girls":
-            for k in range(5):
-                m.add(t - 0.4 + 0.25 * k, sfx.chime(700 + 80 * k, 0.25), 0.4, -0.4 + 0.2 * k, 0.5)
+            for k in range(7):
+                m.add(t + 0.05 + k * 0.17, sfx.step_light(k), 0.4, 0.4 - 0.08 * k, 0.15)
+            m.add(EX_RUN[1] - 0.05, sfx.body_fall() * 0.5, 0.6, 0.1, 0.3)
+            m.add(EX_RUN[1] + 0.1, sfx.chime(880, 0.35), 0.6, 0, 0.5)
+        elif kind == "girl":
+            m.add(t, sfx.chime(620 + 90 * extra, 0.3), 0.5, (-1) ** extra * 0.4, 0.5)
+        elif kind == "bardrop":
+            m.add(t + 0.22, sfx.plate_clank(91, 1.2), 0.8, -0.2, 0.4)
         elif kind == "cross":
             m.add(t, sfx.boom(3.0), 0.7, 0, 0.5)
     m.add(CROSS - 2.0, sfx.riser(2.0), 0.4, 0, 0.3)
@@ -628,7 +656,7 @@ def build_audio(events, path):
 if __name__ == "__main__":
     print(f"duration {DUR:.2f}s frames {N}")
     if "--stills" in sys.argv:
-        ts = [1.2, 3.4, 4.8, 5.6, 6.6, 7.9, 8.7, 9.6, 11.0, 14.5, CUT2 + 1.3, CROSS + 0.3, P3 + 1.2]
+        ts = [1.0, 12.5, 14.5, 16.0, MONT_END + 1.2, EX_RUN[1] + 0.3, P3 + 1.2]
         render(stills=sorted(set(int(x * FPS) for x in ts)))
     else:
         render()
