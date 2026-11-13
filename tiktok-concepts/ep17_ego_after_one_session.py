@@ -46,13 +46,39 @@ def headband(c, cam, j, col=RED):
     c.drawLine(hx - r * 0.95, hy - r * 0.25, hx - r * 1.5, hy + r * 0.2, paint(col, 1.0, 5))
 
 
-def shaker(c, cam, pos, alpha=1.0):
-    x, y = cam.pt(pos)
-    w, h = 0.22 * cam.s, 0.62 * cam.s
-    r = skia.Rect(x - w / 2, y - h, x + w / 2, y)
-    c.drawRoundRect(r, 8, 8, paint((0, 0, 0), 1.0))
-    c.drawRoundRect(r, 8, 8, paint(WHITE, alpha, 3))
-    c.drawRect(skia.Rect(x - w / 2 - 3, y - h - 14, x + w / 2 + 3, y - h), paint(RED, alpha))
+def shaker(c, cam, hand, alpha=1.0):
+    """A big, readable protein shaker held in the hand (hand at mid-height)."""
+    x, y = cam.pt(hand)
+    w, h = 0.34 * cam.s, 0.85 * cam.s
+    top, bot = y - h * 0.55, y + h * 0.45
+    body = skia.Path()
+    body.moveTo(x - w / 2, top)
+    body.lineTo(x + w / 2, top)
+    body.lineTo(x + w * 0.42, bot)
+    body.lineTo(x - w * 0.42, bot)
+    body.close()
+    c.drawPath(body, paint((0, 0, 0), 1.0))
+    c.drawPath(body, paint(WHITE, alpha, 4))
+    for k in range(4):                                   # measuring marks
+        yy = top + (bot - top) * (0.3 + 0.13 * k)
+        c.drawLine(x + w * 0.12, yy, x + w * 0.38, yy, paint(WHITE, 0.6 * alpha, 2))
+    c.drawRoundRect(skia.Rect(x - w / 2 - 4, top - 0.16 * cam.s, x + w / 2 + 4, top), 6, 6, paint(RED, alpha))
+    c.drawRect(skia.Rect(x - w * 0.12, top - 0.26 * cam.s, x + w * 0.12, top - 0.16 * cam.s), paint(RED, alpha))
+    draw_spaced(c, "XXL", x - w * 0.05, y + 0.12 * cam.s, font(0.17 * cam.s, "InterDisplay-Black"), 1, paint(WHITE, alpha))
+
+
+def dumbbell(c, cam, center, alpha=1.0, label=None):
+    """Small but clearly readable dumbbell (bar + two plates), seen from the front."""
+    x, y = cam.pt(center)
+    L = 0.62 * cam.s
+    c.drawLine(x - L / 2, y, x + L / 2, y, paint(WHITE, alpha, 6))
+    for sgn in (-1, 1):
+        px = x + sgn * L * 0.42
+        r = skia.Rect(px - 0.07 * cam.s, y - 0.17 * cam.s, px + 0.07 * cam.s, y + 0.17 * cam.s)
+        c.drawRoundRect(r, 5, 5, paint((0, 0, 0), 1.0))
+        c.drawRoundRect(r, 5, 5, paint(WHITE, alpha, 4))
+    if label:
+        draw_spaced(c, label, x, y - 0.32 * cam.s, font(0.22 * cam.s, "InterDisplay-Black"), 1, paint(RED, alpha))
 
 
 def render(stills=None):
@@ -102,7 +128,7 @@ def render(stills=None):
             je = run_pose(x, u * 8, 0.35 if u < 1.6 else 0.0)
             je = blend(je, stand(x, -0.12, 0.6, 0.15, 1.7, 0.2, -0.3), smoothstep(1.4, 1.9, u))
             draw_body(hc, je, cam, WHITE, ea)
-            shaker(hc, cam, je["hand1"] + [0.05, 0.35])
+            shaker(hc, cam, je["hand1"] + [0.06, 0.05])
             headband(hc, cam, je)
         elif name == "rep":
             if u < 1.4:
@@ -114,10 +140,10 @@ def render(stills=None):
             draw_body(hc, je, cam, WHITE, ea)
             headband(hc, cam, je)
             if u < 1.5:
-                b = (je["hand1"] + je["hand2"]) / 2
-                hc.drawCircle(*cam.pt(b), 0.07 * S, paint(WHITE, 1.0, 3))
+                b = je["hand1"]
+                dumbbell(hc, cam, b + [0.02, 0.0], 1.0, "2 KG")
             else:
-                hc.drawCircle(*cam.pt((EX + 0.5, 0.08)), 0.07 * S, paint(WHITE, 0.8, 3))
+                dumbbell(hc, cam, (EX + 0.6, 0.18), 0.85, "2 KG")
             caption(oc, "1 REP.", 560, smoothstep(1.2, 1.3, u), WHITE, 56)
             if u > 1.6:
                 hx, hy = cam.pt(je["head"])
