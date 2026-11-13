@@ -44,17 +44,17 @@ def sfont(size, tf=None):
 
 GO = 1.2
 STOP = {"MOTIVATION": (3.3, 2.2), "TALENT": (5.4, 4.3)}
-EGO_GOLD = 18.4
+EGO_GOLD = 16.8
 EGO_D = 15.5
 DOUBTS = [(8.6, "I CAN'T"), (9.3, "I'M A LOSER"), (10.0, "I'M NOT BUILT FOR THIS")]
 DOUBT = (8.4, 12.0)
 RED_T = 10.6
-INTER = (12.0, 15.9)
-PASS = 19.6
+INTER = (12.0, 14.2)
+PASS = 18.0
 PILE = 34.0
-BOTTOM_T = 22.0
-P1, P2 = 22.9, 23.7
-DUR = 27.0
+BOTTOM_T = 20.4
+P1, P2 = 21.3, 22.1
+DUR = 25.4
 
 
 def ego_depth(t):
@@ -89,12 +89,22 @@ def depth(n, t):
 
 
 def dig_pose(x, y, t, speed, ph=0.0):
+    """Digging straight DOWN: shovel held vertically in front, blade driven into
+    the floor under his feet. c=1 shovel raised, c=0 blade buried."""
     c = 0.5 + 0.5 * math.sin(t * (6 + 9 * speed) + ph)
-    j = build_pose(np.array([x - 0.05, y + 1.42 - 0.12 * c]), np.array([x + 0.25, y + 0.02]), np.array([x - 0.25, y + 0.02]),
-                   0.35 + 0.3 * c, 0.9 - 0.5 * c, 0.75 - 0.5 * c, 0.6, 0.7, 0.3 + 0.2 * c)
-    hand = (j["hand1"] + j["hand2"]) / 2
-    tip = hand + np.array([0.25 + 0.1 * c, -1.0 + 0.3 * (1 - c)])
-    return j, tip
+    hip = np.array([x - 0.1, y + 1.45 - 0.12 * (1 - c)])
+    j = build_pose(hip, np.array([x + 0.08, y + 0.02]), np.array([x - 0.2, y + 0.02]),
+                   0.28 + 0.22 * (1 - c), 0.5, 0.4, 0.5, 0.6, 0.55)
+    sx = x + 0.4                                     # shovel shaft x (in front of him, inside the shaft)
+    top = np.array([sx, y + 1.3 + 0.5 * c])          # handle top
+    tip = np.array([sx, y - 0.3 + 0.5 * c])          # blade, below his feet when c -> 0
+    j["hand1"] = top + [0, -0.05]
+    j["hand2"] = top + [0, -0.5]
+    sh = j["shoulder"]
+    from engine import ik, L_UARM, L_FARM
+    j["elbow1"] = ik(sh, j["hand1"], L_UARM, L_FARM, -1)
+    j["elbow2"] = ik(sh, j["hand2"], L_UARM, L_FARM, -1)
+    return j, (top, tip)
 
 
 def lie_relax(x, y):
@@ -178,6 +188,58 @@ def sisyphus(c, t, alpha, zoom):
     c.restore()
 
 
+CARD = (150, 590, 790, 1230)     # x0, y0, x1, y1 (screen), centred in the safe zone
+
+
+def draw_card(c, u, t):
+    """Fast interlude shown in a centred card: dictionary -> YOU VS YOU -> Sisyphus."""
+    x0, y0, x1, y1 = CARD
+    w, h = x1 - x0, y1 - y0
+    pop = 1 + 0.06 * (1 - ease_out(min(1, u / 0.15)))
+    c.save()
+    c.translate((x0 + x1) / 2, (y0 + y1) / 2)
+    c.scale(pop, pop)
+    c.translate(-w / 2, -h / 2)
+    rect = skia.Rect(0, 0, w, h)
+    c.drawRoundRect(rect, 18, 18, paint((0, 0, 0), 0.96))
+    c.drawRoundRect(rect, 18, 18, paint(WHITE, 0.85, 3))
+    c.clipRect(rect)
+    if u < 0.85:                                   # dictionary
+        z = 1 + 0.12 * u + 1.6 * smoothstep(0.6, 0.85, u) ** 2
+        c.save()
+        c.translate(200, 170)
+        c.scale(z, z)
+        c.translate(-200, -170)
+        c.drawString("obsessed", 50, 170, sfont(84), paint(WHITE, 1.0))
+        c.drawString("[əbˈsɛst]  adjective • English", 52, 215, sfont(26, SERIF_I), paint(WHITE, 0.75))
+        c.drawLine(52, 245, 330, 245, paint(WHITE, 0.6, 2))
+        for k, ln in enumerate(["what the comfortable call the committed.", "one thought, every single day,",
+                                "until it becomes real.", "", "obsession beats talent. every time."]):
+            c.drawString(ln, 52, 300 + 40 * k, sfont(27), paint(WHITE, 0.88))
+        c.restore()
+    elif u < 1.35:                                 # YOU VS YOU
+        uu = (u - 0.85) / 0.5
+        z = 1.35 - 0.35 * ease_out(uu)
+        c.save()
+        c.translate(w / 2, h / 2)
+        c.scale(z, z)
+        draw_spaced(c, "YOU VS YOU", 0, 35, sfont(100), 2, paint(WHITE, 1.0))
+        c.restore()
+    else:                                          # IT'S YOU VS YOU + Sisyphus
+        uu = u - 1.35
+        draw_spaced(c, "IT'S YOU VS YOU", w / 2, 90, sfont(46), 2, paint(WHITE, 1.0))
+        c.save()
+        c.translate(w / 2 - CX * 0.62, 400 - 1050 * 0.62)
+        c.scale(0.62 * (1 + 0.05 * uu), 0.62 * (1 + 0.05 * uu))
+        sisyphus(c, t, 1.0, 1.0)
+        c.restore()
+    # hard cut flashes between images
+    for tc_ in (0.85, 1.35):
+        if tc_ <= u < tc_ + 0.08:
+            c.drawRect(rect, paint(WHITE, 0.5 * (1 - (u - tc_) / 0.08)))
+    c.restore()
+
+
 def render(stills=None):
     v = Video(OUT, NAME, DUR, stills)
     log = Log()
@@ -201,7 +263,7 @@ def render(stills=None):
                 k = int((t - GO) * (6.5 if fast else 2.2))
                 log.once(f"dig{n}{k}", t, "dig", (ORDER.index(n), fast))
                 if rng.random() < (0.7 if fast else 0.4):
-                    dirt.emit(np.array([[XS[n] + 0.3, -D[n] + 0.1]]) + rng.normal(0, 0.1, (3, 2)), vel=(0.0, 4 if fast else 2.5),
+                    dirt.emit(np.array([[XS[n] + 0.2, -D[n] + 0.05]]) + rng.normal(0, 0.08, (3, 2)), vel=(0.0, 4 if fast else 2.5),
                               spread=0.8, life=(0.3, 0.6), size=(0.03, 0.06))
         for n, (ts, d) in STOP.items():
             if t >= ts:
@@ -213,9 +275,9 @@ def render(stills=None):
             log.once("red", t, "red")
         if t >= INTER[0]:
             log.once("inter", t, "inter")
-        if t >= 13.75:
+        if t >= INTER[0] + 0.85:
             log.once("youvsyou", t, "youvsyou")
-        if t >= 14.6:
+        if t >= INTER[0] + 1.35:
             log.once("sisy", t, "sisy")
         if t >= INTER[1]:
             log.once("back", t, "back")
@@ -253,7 +315,7 @@ def render(stills=None):
 
         v.clear()
         e, f_, tc, hc = v.env.canvas, v.fig.canvas, v.txt.canvas, v.hero.canvas
-        if not inter:
+        if True:
             # ground
             l, top = cam.pt((-4.2, 0))
             r, bot = cam.pt((4.2, -PILE - 4))
@@ -288,7 +350,8 @@ def render(stills=None):
                 if t < GO:
                     wave = 0.4 + 0.3 * math.sin(t * 6 + i) if n == "OBSESSION" else 0.3
                     j = stand(x - 0.1, 0.0, 0.3, 0.25, 0.4, 0.4, 0.0)
-                    tip = (j["hand1"] + j["hand2"]) / 2 + np.array([0.15, -1.2])
+                    hnd = (j["hand1"] + j["hand2"]) / 2
+                    tip = (hnd + [0.1, 0.3], np.array([hnd[0] + 0.1, 0.05]))
                 elif n in STOP and t >= STOP[n][0]:
                     w = smoothstep(STOP[n][0], STOP[n][0] + 0.4, t)
                     jd, _ = dig_pose(x, y, t, 0)
@@ -322,9 +385,19 @@ def render(stills=None):
                             hc.drawLine(sx, sy, sx, sy - 70, paint(RED, 0.4, 2))
                 draw_body(hc, j, cam, col, alpha, 0.2 if n == "OBSESSION" and t >= INTER[1] else 0.0)
                 if tip is not None:
-                    hand = (j["hand1"] + j["hand2"]) / 2
-                    hc.drawLine(*cam.pt(hand + [0, 0.25]), *cam.pt(tip), paint(col, alpha, max(2, 0.05 * cam.s)))
-                    hc.drawLine(*cam.pt(tip + [-0.1, 0]), *cam.pt(tip + [0, -0.2]), paint(col, alpha, max(3, 0.12 * cam.s)))
+                    if isinstance(tip, tuple):
+                        top, bl = tip
+                    else:
+                        top, bl = (j["hand1"] + j["hand2"]) / 2 + [0, 0.2], tip
+                    hc.drawLine(*cam.pt(top + [0, 0.1]), *cam.pt(bl + [0, 0.25]), paint(col, alpha, max(2, 0.05 * cam.s)))
+                    bp = skia.Path()
+                    bp.moveTo(*cam.pt(bl + [-0.13, 0.27]))
+                    bp.lineTo(*cam.pt(bl + [0.13, 0.27]))
+                    bp.lineTo(*cam.pt(bl + [0.1, 0.0]))
+                    bp.lineTo(*cam.pt(bl + [0.0, -0.08]))
+                    bp.lineTo(*cam.pt(bl + [-0.1, 0.0]))
+                    bp.close()
+                    hc.drawPath(bp, paint(col, alpha))
                 if n == "TALENT" and t >= STOP[n][0]:
                     cx_, cy_ = cam.pt(j["hand1"] + [0.05, 0.1])
                     f_.drawCircle(cx_, cy_, 0.15 * cam.s, paint(RED, 1.0))
@@ -369,42 +442,8 @@ def render(stills=None):
             # pass flash
             if PASS <= t < PASS + 0.35:
                 f_.drawRect(skia.Rect(0, 0, W, H), paint(RED, 0.1 * (1 - (t - PASS) / 0.35)))
-        else:
-            # =========== INTERLUDE ===========
-            u = t - INTER[0]
-            if u < 1.75:                       # dictionary card, slow zoom, then into the word
-                z = 1 + 0.08 * u + 2.5 * smoothstep(1.35, 1.75, u) ** 2
-                a = smoothstep(0, 0.2, u)
-                c = tc
-                c.save()
-                c.translate(300, 670)
-                c.scale(z, z)
-                c.translate(-300, -670)
-                draw_spaced(c, "obsessed", 300, 700, sfont(88), 1, paint(WHITE, a))
-                c.drawString("[əbˈsɛst]  adjective • English", 160, 760, sfont(30, SERIF_I), paint(WHITE, 0.75 * a))
-                c.drawLine(160, 800, 500, 800, paint(WHITE, 0.6 * a, 2))
-                lines = ["what the comfortable call the committed.",
-                         "one thought, every single day,",
-                         "until it becomes real.",
-                         "",
-                         "obsession beats talent. every time."]
-                for k, ln in enumerate(lines):
-                    c.drawString(ln, 160, 860 + 44 * k, sfont(30), paint(WHITE, 0.85 * a))
-                c.restore()
-            elif u < 2.6:                      # YOU VS YOU, huge, zooming
-                uu = u - 1.75
-                z = 1.6 - 0.5 * ease_out(uu / 0.85)
-                a = smoothstep(0, 0.12, uu) * (1 - smoothstep(0.7, 0.85, uu))
-                tc.save()
-                tc.translate(CX, 960)
-                tc.scale(z, z)
-                draw_spaced(tc, "YOU VS YOU", 0, 40, sfont(150), 2, paint(WHITE, a))
-                tc.restore()
-            else:                              # IT'S YOU VS YOU + Sisyphus
-                uu = u - 2.6
-                a = smoothstep(0, 0.2, uu) * (1 - smoothstep(1.0, 1.3, uu))
-                draw_spaced(tc, "IT'S YOU VS YOU", CX, 560, sfont(70), 2, paint(WHITE, a))
-                sisyphus(f_, t, a, 0.95 + 0.06 * uu)
+        if inter:
+            draw_card(v.over.canvas, t - INTER[0], t)
         if t >= BOTTOM_T - 0.2:
             pass
         # punchline
@@ -418,7 +457,9 @@ def render(stills=None):
                     ff = sfont(54 if t0 == P1 else 48, MONO)
                     draw_spaced(oc, txt, CX, y, ff, 4, paint(col, a))
         flash = math.exp(-(t - BOTTOM_T) * 2.5) if t >= BOTTOM_T else 0.0
-        dark = 0.4 * smoothstep(DOUBT[0], RED_T, t) * (1 - smoothstep(INTER[1] - 0.1, INTER[1] + 0.3, t)) if not inter else 0.0
+        dark = 0.4 * smoothstep(DOUBT[0], RED_T, t) * (1 - smoothstep(INTER[1] - 0.1, INTER[1] + 0.3, t))
+        if inter:
+            dark = 0.75
         v.compose(fi, t, flash=flash, glow=0.3 * (t >= INTER[1]), dim=dark)
     v.finish(build_audio, log.events)
 
