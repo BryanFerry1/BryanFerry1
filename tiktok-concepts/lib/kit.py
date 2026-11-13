@@ -410,3 +410,46 @@ class Log:
 
     def add(self, t, kind, extra=0):
         self.events.append((t, kind, 0, extra))
+
+
+# ------------------------------------------------------------------ speech bubbles (opaque, readable)
+def bubble(c, text, tip_xy, alpha=1.0, col=WHITE, size=34, side=0, above=150, maxw=760):
+    """Speech bubble drawn on the opaque overlay. tip_xy = screen point the tail
+    points to (usually above a head). side shifts the box horizontally."""
+    if alpha < 0.01:
+        return
+    from engine import spaced_width
+    f = font(size, "InterDisplay-Black")
+    while spaced_width(text, f, 1) > maxw - 40 and size > 16:
+        size -= 2
+        f = font(size, "InterDisplay-Black")
+    w = spaced_width(text, f, 1) + 44
+    h = size + 34
+    tx, ty = tip_xy
+    cx = min(max(tx + side, 80 + w / 2), 880 - w / 2)
+    top = ty - above - h
+    r = skia.Rect(cx - w / 2, top, cx + w / 2, top + h)
+    tail = skia.Path()
+    tail.moveTo(min(max(tx - 16, r.left() + 14), r.right() - 40), top + h - 2)
+    tail.lineTo(min(max(tx + 16, r.left() + 40), r.right() - 14), top + h - 2)
+    tail.lineTo(tx, ty - 18)
+    tail.close()
+    c.drawPath(tail, paint((0, 0, 0), alpha))
+    c.drawRoundRect(r, 16, 16, paint((0, 0, 0), alpha))
+    c.drawRoundRect(r, 16, 16, paint(WHITE, alpha, 3))
+    c.drawPath(tail, paint(WHITE, alpha, 3))
+    c.drawRect(skia.Rect(min(max(tx - 14, r.left() + 16), r.right() - 38), top + h - 6,
+                         min(max(tx + 14, r.left() + 38), r.right() - 16), top + h + 1), paint((0, 0, 0), alpha))
+    draw_spaced(c, text, cx, top + h / 2 + size * 0.36, f, 1, paint(col, alpha))
+
+
+def caption(c, text, y, alpha=1.0, col=WHITE, size=44, band=True):
+    """Readable caption line on the opaque overlay (optional black band)."""
+    if alpha < 0.01:
+        return
+    from engine import spaced_width
+    f = fit_font(text, size, "InterDisplay-Black", 2, 780)
+    w = spaced_width(text, f, 2) + 40
+    if band:
+        c.drawRoundRect(skia.Rect(CX - w / 2, y - size - 6, CX + w / 2, y + 18), 10, 10, paint((0, 0, 0), 0.85 * alpha))
+    draw_spaced(c, text, CX, y, f, 2, paint(col, alpha))
