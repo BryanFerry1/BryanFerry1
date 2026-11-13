@@ -347,16 +347,20 @@ def render(stills=None):
                     if n in STOP and t >= STOP[n][0]:
                         po = 1 + 0.5 * math.exp(-(t - STOP[n][0]) * 8)
                         draw_spaced(tc, "OUT", hx, hy - 0.5 * cam.s - 26, sfont(20 * po, MONO), 2, paint(RED, 0.95))
-            # doubts on the wall
+            # doubts: readable tags (opaque overlay) stacked above his head
+            oc = v.over.canvas
+            hx_o, hy_o = cam.pt(stand(XS["OBSESSION"]).get("head") + [0, -D["OBSESSION"]])
             for k, (tt, s_) in enumerate(DOUBTS):
                 if tt <= t < INTER[0]:
-                    pop = 1 + 0.3 * math.exp(-(t - tt) * 10)
-                    wx_, wy_ = cam.pt((XS["OBSESSION"] + (-1.4 if k != 1 else 1.3), -D["OBSESSION"] + 2.6 + 0.5 * k))
-                    f = sfont(22 * pop, MONO)
-                    wdt = spaced_width(s_, f, 1) + 20
-                    rr = skia.Rect(wx_ - wdt / 2, wy_ - 24, wx_ + wdt / 2, wy_ + 8)
-                    tc.drawRect(rr, paint((0.8, 0.8, 0.82), 0.9))
-                    tc.drawString(s_, wx_ - wdt / 2 + 10, wy_ - 2, f, paint((0, 0, 0), 1.0))
+                    pop = 1 + 0.25 * math.exp(-(t - tt) * 10)
+                    f = sfont(30 * pop, MONO)
+                    wdt = spaced_width(s_, f, 1) + 34
+                    cx_ = min(max(hx_o, 80 + wdt / 2), 880 - wdt / 2)
+                    cy_ = hy_o - 120 - 74 * k
+                    rr = skia.Rect(cx_ - wdt / 2, cy_ - 38, cx_ + wdt / 2, cy_ + 14)
+                    oc.drawRect(rr, paint((0, 0, 0), 0.92))
+                    oc.drawRect(rr, paint(WHITE, 1.0, 3, cap=False))
+                    draw_spaced(oc, s_, cx_, cy_, f, 1, paint(WHITE, 1.0))
             # "DIG!"
             if t < 1.6:
                 a = smoothstep(0.0, 0.15, t) * (1 - smoothstep(1.2, 1.6, t))
@@ -404,10 +408,15 @@ def render(stills=None):
         if t >= BOTTOM_T - 0.2:
             pass
         # punchline
-        for t0, txt, col, y in ((P1, "THEY ALL STOPPED.", WHITE, 820), (P2, "OBSESSION KEPT DIGGING.", RED, 880)):
-            if t >= t0:
-                a = smoothstep(t0, t0 + 0.4, t)
-                draw_spaced(tc, txt, CX, y, sfont(46, MONO), 6, paint(col, a))
+        if t >= P1:
+            oc = v.over.canvas
+            ba = smoothstep(P1 - 0.2, P1 + 0.2, t)
+            oc.drawRect(skia.Rect(0, 700, W, 960), paint((0, 0, 0), 0.88 * ba))
+            for t0, txt, col, y in ((P1, "THEY ALL STOPPED.", WHITE, 805), (P2, "OBSESSION KEPT DIGGING.", RED, 895)):
+                if t >= t0:
+                    a = smoothstep(t0, t0 + 0.4, t)
+                    ff = sfont(54 if t0 == P1 else 48, MONO)
+                    draw_spaced(oc, txt, CX, y, ff, 4, paint(col, a))
         flash = math.exp(-(t - BOTTOM_T) * 2.5) if t >= BOTTOM_T else 0.0
         dark = 0.4 * smoothstep(DOUBT[0], RED_T, t) * (1 - smoothstep(INTER[1] - 0.1, INTER[1] + 0.3, t)) if not inter else 0.0
         v.compose(fi, t, flash=flash, glow=0.3 * (t >= INTER[1]), dim=dark)

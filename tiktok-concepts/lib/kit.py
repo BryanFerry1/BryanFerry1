@@ -355,6 +355,7 @@ class Video:
         self.stills = stills
         os.makedirs(out_dir, exist_ok=True)
         self.env, self.fig, self.txt, self.hero = Layer(), Layer(), Layer(), Layer()
+        self.over = Layer()   # opaque overlay (readable text boxes), composited last, no bloom
         self.post = Post()
         self.writer = None if stills else VideoWriter(os.path.join(out_dir, name + "_video.mp4"))
 
@@ -362,7 +363,7 @@ class Video:
         return self.stills is None or fi in self.stills
 
     def clear(self):
-        for L in (self.env, self.fig, self.txt, self.hero):
+        for L in (self.env, self.fig, self.txt, self.hero, self.over):
             L.clear()
 
     def compose(self, fi, t, flash=0.0, glow=0.0, white=0.0, dim=0.0):
@@ -372,6 +373,10 @@ class Video:
         h = bloom(self.hero.rgb(), (1.0, (4, 0.45), (16, 0.35 + 0.2 * glow), (50, 0.25 + 0.2 * glow + flash * 0.6)))
         x = bloom(self.txt.rgb(), (1.0, (6, 0.7), (26, 0.45)))
         img = ((e + g + h) * (1 - dim) + x) * master + white
+        ov = self.over.rgba()
+        if ov[..., 3].max() > 0:
+            a = ov[..., 3:4] * master
+            img = img * (1 - a) + ov[..., :3] * master
         frame = self.post.apply(img, fi)
         if self.stills is not None:
             import PIL.Image

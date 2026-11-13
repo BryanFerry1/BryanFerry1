@@ -80,6 +80,12 @@ class Layer:
                           alphaType=skia.AlphaType.kPremul_AlphaType)
         return arr[:, :, :3].astype(np.float32) * (1.0 / 255.0)
 
+    def rgba(self):
+        img = self.surface.makeImageSnapshot()
+        arr = img.toarray(colorType=skia.ColorType.kRGBA_8888_ColorType,
+                          alphaType=skia.AlphaType.kPremul_AlphaType)
+        return arr.astype(np.float32) * (1.0 / 255.0)
+
 
 def blur(img, sigma):
     d = max(1, int(sigma / 3))
