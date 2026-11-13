@@ -41,6 +41,7 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 | 11 | Comfort vs Obsession (le canapé) | Une horloge dont les aiguilles s'emballent, réveil 5h. Comfort sur son canapé avec son téléphone : le canapé l'avale un peu plus chaque année. Obsession court, soulève, travaille, grandit. YEAR 10 : Comfort ressort vieux, gris, avec une canne ; une couronne rouge apparaît au-dessus d'Obsession. | COMFORT IS / A SLOW / DEATH. | The couch never says no. That's the problem. #comfortzone #obsession #discipline #mindset #selfimprovement |
 | 12 | Ego vs Discipline (l'argent) | Pluie de billets rouges, les deux reçoivent la même somme. Ego achète voiture, montre, soirées (cœurs), sa courbe monte puis s'écrase : voiture brisée, $0. Discipline met une pièce dans une boîte chaque année, un arbre pousse, sa courbe explose, une voiture arrive derrière lui. | EGO BUYS ATTENTION. / DISCIPLINE BUYS / FREEDOM. | Same money. Different decade. #money #discipline #ego #mindset #wealth |
 | 13 | Fear vs Obsession (le saut) | Un caillou tombe dans le vide et n'atterrit jamais. Couronne rouge de l'autre côté. Obsession fixe la couronne, prend son élan, saute : une planche de lumière apparaît sous chaque pas, il prend la couronne. Fear s'approche du bord, des voix rouges (WHAT IF YOU FAIL?…) le font reculer ; les années passent, il vieillit au bord. | FEAR ASKS WHAT IF. / OBSESSION ASKS / WHEN. | The bridge only appears when you step. #fear #obsession #mindset #courage #stayhard |
+| 14 | Dig (Motivation, Talent, Ego, Obsession) | Hook visuel : un diamant qui scintille tout au fond, la caméra remonte à la surface sur 4 bonhommes avec des pelles. Motivation creuse vite et abandonne (OUT), Talent trouve une pièce rouge (OUT), Ego un tas de pièces et s'allonge dessus (OUT). Obsession continue seul, doutes rouges sur les parois, tombe à genoux, se relève avec une aura rouge, creuse de plus en plus vite et frappe le diamant à 61 M. | EVERYONE STOPS SOMEWHERE. / OBSESSION / DOESN'T. | Most people quit 3 feet from the diamond. #obsession #discipline #mindset #neverquit #grind |
 
 ## Scénarios proposés (prochains épisodes)
 
@@ -91,6 +92,7 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 | 11 | How many hours on your phone today? | <2h / 2–5h / 5h+ 😬 |
 | 12 | What would you do with $100K? | Car & watch 🚗 / Invest it 📈 / Start a business 🔥 |
 | 13 | What's stopping your jump? | Fear of failing / What people think / Timing / Nothing, I jumped 🔥 |
+| 14 | Where did you stop digging? | Motivation 💨 / Talent 🪙 / Ego 💰 / Still digging ⛏️ |
 | 03 | Ever let your ego pick the weight? | Yes, and I paid for it 🤕 / Yes, still lucky / Never, form first
 
 Sondages de réserve, réutilisables : *Which episode should be next?* (deux concepts à venir) ·

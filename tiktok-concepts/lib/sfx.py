@@ -481,3 +481,18 @@ def heart_break():
     crack = bandnoise(d, 1500, 9000, 7) * np.exp(-t * 30) * 0.8
     tone = sweep(d, 520, 140) * np.exp(-t * 2.5) * 0.35
     return crack + tone
+
+
+def dig(seed=0, amp=1.0):
+    """Shovel into dirt: crunchy low-mid burst + small stone click."""
+    d = 0.35
+    t = t_axis(d)
+    crunch = bandnoise(d, 150, 2500, seed) * np.exp(-t * 18)
+    rng = np.random.default_rng(seed)
+    click = np.zeros(len(t))
+    for _ in range(3):
+        st = int(rng.uniform(0.01, 0.12) * SR)
+        m = int(0.02 * SR)
+        click[st:st + m] += np.sin(2 * np.pi * rng.uniform(1500, 3500) * np.arange(m) / SR) * np.exp(-np.linspace(0, 6, m)) * 0.2
+    thud = np.sin(2 * np.pi * 70 * t) * np.exp(-t * 25) * 0.5
+    return (crunch * 0.7 + click + thud) * 0.55 * amp
