@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Puff Stop</title>
-<meta name="theme-color" content="#0b0f0d">
+<meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,16 +12,24 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="app">
   <!-- ONBOARDING -->
   <section id="onboarding" class="screen" hidden>
-    <h1>Puff Stop</h1>
-    <p class="muted">Arrêt progressif de la puff. On part de <b>ta</b> conso actuelle, et on espace les taffes un peu plus chaque jour. Au début ça bouge à peine.</p>
+    <div class="brandbar"><span class="brand">PUFF&nbsp;STOP</span><span class="eyebrow">PROTOCOLE / P1</span></div>
+    <div class="hero">
+      <svg class="logo" viewBox="0 0 60 60" aria-hidden="true"><g fill="currentColor"><circle cx="8" cy="8" r="4"/><circle cx="8" cy="20" r="4"/><circle cx="8" cy="32" r="4"/><circle cx="8" cy="44" r="4"/><circle cx="8" cy="56" r="4"/><circle cx="20" cy="8" r="4"/><circle cx="32" cy="10" r="3.6"/><circle cx="40" cy="18" r="3"/><circle cx="32" cy="27" r="2.6"/><circle cx="20" cy="30" r="3.4"/><circle cx="48" cy="34" r="2" opacity=".7"/><circle cx="52" cy="44" r="1.6" opacity=".5"/><circle cx="56" cy="54" r="1.2" opacity=".3"/></g></svg>
+      <div class="eyebrow">SEVRAGE PROGRESSIF / NICOTINE</div>
+      <h1>CHAQUE JOUR,<br>UN PEU PLUS<br>LIBRE.</h1>
+    </div>
+    <p class="muted lead">Arrêt progressif de la puff. On part de <b>ta</b> conso actuelle, et on espace les taffes un peu plus chaque jour. Au début ça bouge à peine.</p>
     <form id="setupForm" class="card form">
-      <h3>Ta conso actuelle</h3>
+      <h3><i>01</i> Ta conso actuelle</h3>
       <p class="small muted">Le plan fonctionne en <b>sessions</b> : quelques taffes d'un coup, puis une pause qui s'allonge chaque jour. Au réveil et au coucher, tu gardes une session plus grosse.</p>
       <label>Une session toutes les… <span><input name="baseInterval" type="number" min="1" max="120" step="1" value="10"> min</span></label>
       <label>Taffes par session <span><input name="sessionSize" type="number" min="1" max="30" step="1" value="5"></span></label>
@@ -30,10 +38,10 @@
       <label>Liquide dans la puff <span><input name="mlPerPuff" type="number" min="1" max="50" step="0.5" value="22"> ml</span></label>
       <label>Nicotine <span><input name="mg" type="number" min="0" max="20" step="1" value="20"> mg/ml</span></label>
       <label>Prix d'une puff <span><input name="price" type="number" min="0" max="100" step="0.5" value="12"> €</span></label>
-      <h3>Tes horaires</h3>
+      <h3><i>02</i> Tes horaires</h3>
       <label>Réveil <input name="wake" type="time" value="08:00"></label>
       <label>Coucher <input name="sleep" type="time" value="00:00"></label>
-      <h3>Rythme du sevrage</h3>
+      <h3><i>03</i> Rythme du sevrage</h3>
       <div class="pace" id="paceChoice"></div>
       <button class="btn primary big" type="submit">Lancer mon plan</button>
     </form>
@@ -42,16 +50,16 @@
   <!-- MAIN -->
   <main id="main" hidden>
     <section id="tab-today" class="screen">
+      <div class="brandbar"><span class="brand">PUFF&nbsp;STOP</span><button class="chip sos" id="sosBtn">ENVIE <b>›</b></button></div>
       <header class="top">
-        <div>
-          <div class="eyebrow" id="dayLabel">Jour 1</div>
-          <div class="muted small" id="paceLabel"></div>
-        </div>
-        <button class="chip" id="sosBtn">🆘 Envie</button>
+        <div class="eyebrow">01 / AUJOURD'HUI</div>
+        <div class="dayTitle" id="dayLabel">Jour 1</div>
+        <div class="muted small" id="paceLabel"></div>
       </header>
 
       <div class="ringWrap">
         <svg viewBox="0 0 200 200" class="ring">
+          <circle cx="100" cy="100" r="97" class="ringTicks"/>
           <circle cx="100" cy="100" r="88" class="ringBg"/>
           <circle cx="100" cy="100" r="88" class="ringFg" id="ringFg"/>
         </svg>
@@ -79,11 +87,11 @@
       </div>
 
       <div class="card" id="installCard" hidden>
-        <h3>📲 Installe l'appli</h3>
+        <h3>Installe l'appli</h3>
         <p class="small" id="installText"></p>
       </div>
       <div class="card" id="notifCard" hidden>
-        <h3>🔔 Active les notifications</h3>
+        <h3>Active les notifications</h3>
         <p class="small">Pour être prévenu dès que tu as le droit à une taffe.</p>
         <button class="btn primary" id="notifBtn2">Activer</button>
       </div>
@@ -93,7 +101,7 @@
     </section>
 
     <section id="tab-plan" class="screen" hidden>
-      <h2>Ton plan</h2>
+      <div class="eyebrow">02 / PROTOCOLE</div><h2>TON PLAN.</h2>
       <div class="card">
         <div class="progress"><div id="planBar"></div></div>
         <p class="small" id="planSummary"></p>
@@ -116,9 +124,9 @@
     </section>
 
     <section id="tab-stats" class="screen" hidden>
-      <h2>Tes progrès</h2>
+      <div class="eyebrow">03 / SIGNAUX</div><h2>TES PROGRÈS.</h2>
       <div class="card nico">
-        <h3>🫁 Nicotine dans ton corps</h3>
+        <h3>Nicotine dans ton corps</h3>
         <div class="big" id="nicoNow">-</div>
         <div class="small muted" id="nicoNowL">par rapport à ton ancien rythme, à cette heure-ci</div>
         <div class="progress"><div id="nicoBar"></div></div>
@@ -152,9 +160,9 @@
     </section>
 
     <section id="tab-settings" class="screen" hidden>
-      <h2>Réglages</h2>
+      <div class="eyebrow">04 / SYSTÈME</div><h2>RÉGLAGES.</h2>
       <div class="card">
-        <h3>🔔 Notifications</h3>
+        <h3>Notifications</h3>
         <p class="small" id="notifStatus"></p>
         <label>Me prévenir <select id="notifMode">
           <option value="all">à chaque session autorisée</option>
@@ -194,21 +202,21 @@
     </section>
 
     <nav class="tabs">
-      <button data-tab="today" class="on"><span>⏱</span>Aujourd'hui</button>
-      <button data-tab="plan"><span>📉</span>Plan</button>
-      <button data-tab="stats"><span>🏆</span>Progrès</button>
-      <button data-tab="settings"><span>⚙️</span>Réglages</button>
+      <button data-tab="today" class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r=".9" fill="currentColor"/></svg>Aujourd'hui</button>
+      <button data-tab="plan"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="4" cy="5" r="1.6"/><circle cx="4" cy="10" r="1.6"/><circle cx="4" cy="15" r="1.6"/><circle cx="4" cy="20" r="1.6"/><circle cx="10" cy="10" r="1.4"/><circle cx="10" cy="15" r="1.4"/><circle cx="10" cy="20" r="1.4"/><circle cx="16" cy="15" r="1.2"/><circle cx="16" cy="20" r="1.2"/><circle cx="21" cy="20" r="1"/></svg>Plan</button>
+      <button data-tab="stats"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M4.9 4.9l14.2 14.2M19.1 4.9 4.9 19.1"/></svg>Progrès</button>
+      <button data-tab="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5 17a9 9 0 0 1 9-9"/><circle cx="16" cy="11" r="1.2" fill="currentColor"/></svg>Réglages</button>
     </nav>
   </main>
 
   <!-- SOS -->
   <div class="modal" id="sos" hidden>
     <div class="modalBox">
-      <h2>L'envie va passer</h2>
+      <div class="eyebrow">SOS / RESPIRATION</div><h2>L'ENVIE VA PASSER.</h2>
       <div class="breath" id="breath"><span id="breathTxt">Inspire</span></div>
       <p class="countdown small" id="sosTimer">3:00</p>
       <ul class="small list" id="sosTips"></ul>
-      <button class="btn primary" id="sosClose">J'ai tenu 💪</button>
+      <button class="btn primary" id="sosClose">J'ai tenu</button>
     </div>
   </div>
   <div class="toast" id="toast" hidden></div>

@@ -249,9 +249,9 @@ function render() {
     $('#ringCaption').textContent = 'Plan terminé'; $('#countdown').textContent = '0'; $('#ringSub').textContent = 'taffe autorisée. Tu es libre.';
     $('#kindLabel').textContent = ''; fg.style.strokeDashoffset = 0; btn.classList.add('locked');
   } else if (s.t <= now) {
-    $('#ringCaption').textContent = 'Tu as le droit'; $('#countdown').textContent = s.size + ' taffes';
-    $('#ringSub').textContent = `depuis ${fmtClock(s.t)}`;
-    $('#kindLabel').textContent = KIND[s.kind] + ' disponible';
+    $('#ringCaption').textContent = 'Tu as le droit'; $('#countdown').textContent = s.size;
+    $('#ringSub').textContent = `taffes · depuis ${fmtClock(s.t)}`;
+    $('#kindLabel').textContent = KIND[s.kind].replace(/^\S+ /, '') + ' disponible';
     fg.style.strokeDashoffset = 0; fg.style.stroke = 'var(--ac)';
   } else {
     const sameDay = dayKey(s.t) === k;
@@ -287,7 +287,7 @@ function svgLine(points, maxY, mark) {
   const ys = (v) => h - pad - (v / maxY) * (h - 2 * pad);
   const path = points.map((v, i) => (i ? 'L' : 'M') + xs(i).toFixed(1) + ' ' + ys(v).toFixed(1)).join('');
   const m = mark != null && mark < points.length ? `<circle cx="${xs(mark)}" cy="${ys(points[mark])}" r="5" fill="var(--warn)"/>` : '';
-  return `<svg viewBox="0 0 ${w} ${h}"><path d="${path} L${xs(points.length - 1)} ${h - pad} L${pad} ${h - pad}Z" fill="#3ddc8418"/><path d="${path}" fill="none" stroke="var(--ac)" stroke-width="2.5"/>${m}</svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}"><path d="${path} L${xs(points.length - 1)} ${h - pad} L${pad} ${h - pad}Z" fill="rgba(232,245,58,.10)"/><path d="${path}" fill="none" stroke="var(--ac)" stroke-width="2"/>${m}</svg>`;
 }
 function renderPlan(d) {
   const n = N(), pts = [];
