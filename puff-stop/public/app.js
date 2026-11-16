@@ -15,7 +15,8 @@ const PACES = {
   normal: { days: 56, name: 'Normal', desc: '8 semaines · recommandé' },
   rapide: { days: 35, name: 'Rapide', desc: '5 semaines · si tu es très motivé' },
 };
-const KIND = { wake: '☀️ Session du réveil', reg: '🟢 Session', sleep: '🌙 Session du coucher' };
+const KIND = { wake: '☀️ Session du réveil', reg: '🟢 Session', meal: '🍽️ Session après le repas', sleep: '🌙 Session du coucher' };
+const REG_STOP = 0.85; // sur la fin du plan, il ne reste que les moments clés (réveil, repas, coucher)
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -30,6 +31,7 @@ if (S.setup && !S.setup.v2) { // migration vers le mode sessions
   Object.assign(S.setup, { v2: true, baseInterval: 10, sessionSize: 5, edgeSize: 10 });
   S.log = S.log.map((e) => ({ ...e, n: e.n || 1, kind: e.kind || 'reg' }));
 }
+if (S.setup && S.setup.lunch === undefined) Object.assign(S.setup, { lunch: '13:00', dinner: '20:30' });
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
 save();
 
@@ -66,13 +68,34 @@ function planAt(d) {
   const edgeEnd = Math.max(1, Math.round(st.edgeSize * 0.3));
   const reg = Math.max(1, Math.round(st.sessionSize + (regEnd - st.sessionSize) * x));
   const edge = Math.max(reg, Math.round(st.edgeSize + (edgeEnd - st.edgeSize) * x));
+  if (x > REG_STOP) return { I: Infinity, reg: 0, edge, keyOnly: true };
   return { I, reg, edge };
 }
+/* moments clés de la journée : réveil (ws), après les repas, coucher (ss) */
+function mealTimes(w) {
+  const wm = hm(S.setup.wake);
+  return ['lunch', 'dinner'].filter((k) => S.setup[k]).map((k) => w.ws + (((hm(S.setup[k]) - wm) % 1440 + 1440) % 1440) * MIN)
+    .filter((t) => t > w.ws + 30 * MIN && t < w.ss - 30 * MIN).sort((a, b) => a - b);
+}
+function dayWin(ref) { const w = win(ref); w.meals = mealTimes(w); return w; }
+function nextIn(prevT, w, p) { // prochain créneau dans la même journée
+  const m = w.meals.find((x) => x > prevT);
+  const half = isFinite(p.I) ? p.I * MIN / 2 : 0;
+  const regT = isFinite(p.I) ? prevT + p.I * MIN : Infinity;
+  const limit = m !== undefined ? m : w.ss;           // prochain moment clé
+  if (regT < limit - half) return { t: regT, kind: 'reg' };
+  if (m !== undefined) return { t: m, kind: 'meal' };
+  return { t: Math.max(w.ss, prevT), kind: 'sleep' };
+}
+function daySlots(ref, p) {
+  const w = dayWin(ref), out = [{ t: w.ws, kind: 'wake' }];
+  for (let g = 0; g < 300; g++) { const s = nextIn(out[out.length - 1].t, w, p); out.push(s); if (s.kind === 'sleep') break; }
+  return out.map((s) => ({ ...s, size: s.kind === 'reg' ? p.reg : p.edge }));
+}
 function dayCounts(d) { // sessions/taffes prévues sur une journée complète
-  const p = planAt(d); if (p.free) return { sessions: 0, taffes: 0, regN: 0, p };
-  const span = geo().W - BED_BEFORE;
-  const regN = Math.max(0, Math.ceil(span / p.I) - 1);
-  return { sessions: regN + 2, taffes: 2 * p.edge + regN * p.reg, regN, p };
+  const p = planAt(d); if (p.free) return { sessions: 0, taffes: 0, regN: 0, keyN: 0, p };
+  const sl = daySlots(Date.now(), p), regN = sl.filter((s) => s.kind === 'reg').length;
+  return { sessions: sl.length, taffes: taffes(sl.map((s) => ({ n: s.size }))), regN, keyN: sl.length - regN, p };
 }
 const baselinePerDay = () => dayCounts(0).taffes;
 const mlPerTaffe = () => S.setup.mlPerPuff / (S.setup.daysPerPuff * baselinePerDay());
@@ -86,9 +109,8 @@ function mk(t, kind) {
 function slotAfter(prevT, prevKind) {
   if (prevKind === 'sleep') return mk(win(nextDayRef(prevT)).ws, 'wake');
   const p = planAt(planDay(prevT)); if (p.free) return { free: true };
-  const { ss } = win(prevT);
-  const t = prevT + p.I * MIN;
-  return t >= ss ? mk(Math.max(ss, prevT), 'sleep') : mk(t, 'reg');
+  const s = nextIn(prevT, dayWin(prevT), p);
+  return mk(s.t, s.kind);
 }
 function nextAllowed(now = Date.now()) {
   if (planAt(planDay(now)).free) return { free: true };
@@ -109,10 +131,11 @@ function schedule() {
   const now = Date.now();
   if (S.notif === 'off' || !S.setup) return [];
   return upcoming(now, now + 36 * 3600000).filter((s) => s.t > now).filter((s) =>
-    S.notif === 'all' || s.kind === 'wake' || (S.notif === 'min15' && (s.kind === 'sleep' || s.I >= 15))
+    S.notif === 'all' || s.kind === 'wake' || (S.notif === 'min15' && (s.kind !== 'reg' || s.I >= 15))
   ).map((s) => ({
     t: s.t, title: KIND[s.kind] + ' autorisée',
-    body: s.kind === 'wake' ? `${s.size} taffes pour bien démarrer. Ensuite ${planAt(planDay(s.t)).reg} taffes toutes les ${fmtI(s.I)}.`
+    body: s.kind === 'wake' ? (planAt(planDay(s.t)).keyOnly ? `${s.size} taffes. Aujourd'hui : seulement les moments clés 💪` : `${s.size} taffes pour bien démarrer. Ensuite ${planAt(planDay(s.t)).reg} taffes toutes les ${fmtI(s.I)}.`)
+        : s.kind === 'meal' ? `${s.size} taffes. C'est un moment clé : lève-toi de table, prends-les, et passe à autre chose.`
         : s.kind === 'sleep' ? `${s.size} taffes avant de dormir. Bonne nuit 💪`
         : `${s.size} taffes max. Prends-les seulement si t'en as vraiment envie.`,
   }));
@@ -129,11 +152,7 @@ function nicotine(now) {
   // ton ancien rythme (jour 0 du plan) aux mêmes heures, hier + aujourd'hui
   const p0 = planAt(0); let base = 0;
   for (const ref of [now - DAY, now]) {
-    const { ws, ss } = win(ref);
-    const add = (t, n) => { if (t <= now) base += n * ml * mg0() * decay(now - t); };
-    add(ws, p0.edge);
-    for (let t = ws + p0.I * MIN; t < ss; t += p0.I * MIN) add(t, p0.reg);
-    add(ss, p0.edge);
+    for (const sl of daySlots(ref, p0)) if (sl.t <= now) base += sl.size * ml * mg0() * decay(now - sl.t);
   }
   return { cur, base };
 }
@@ -170,13 +189,14 @@ function showOnboarding() {
       v2: true, start: Date.now(), pace: pickedPace,
       baseInterval: +f.get('baseInterval'), sessionSize: +f.get('sessionSize'), edgeSize: +f.get('edgeSize'),
       daysPerPuff: +f.get('daysPerPuff'), mlPerPuff: +f.get('mlPerPuff'),
-      mg: +f.get('mg'), price: +f.get('price'), wake: f.get('wake'), sleep: f.get('sleep'),
+      mg: +f.get('mg'), price: +f.get('price'), wake: f.get('wake'), sleep: f.get('sleep'), lunch: f.get('lunch'), dinner: f.get('dinner'),
     };
     S.puffStart = Date.now(); S.mgHistory = [{ t: Date.now(), mg: S.setup.mg }];
     save(); start();
   };
 }
-const SETTINGS = ['wake', 'sleep', 'baseInterval', 'sessionSize', 'edgeSize', 'mg', 'price', 'mlPerPuff'];
+const STR = ['wake', 'sleep', 'lunch', 'dinner'];
+const SETTINGS = ['wake', 'sleep', 'lunch', 'dinner', 'baseInterval', 'sessionSize', 'edgeSize', 'mg', 'price', 'mlPerPuff'];
 function fillSettings() {
   const f = $('#settingsForm');
   SETTINGS.forEach((k) => (f.elements[k].value = S.setup[k]));
@@ -186,7 +206,7 @@ function fillSettings() {
     e.preventDefault(); const d = new FormData(f);
     const mg = +d.get('mg');
     if (mg !== S.setup.mg) (S.mgHistory = S.mgHistory || [{ t: S.setup.start, mg: S.setup.mg }]).push({ t: Date.now(), mg });
-    SETTINGS.forEach((k) => (S.setup[k] = k === 'wake' || k === 'sleep' ? d.get(k) : +d.get(k)));
+    SETTINGS.forEach((k) => (S.setup[k] = STR.includes(k) ? d.get(k) : +d.get(k)));
     S.setup.pace = p;
     save(); sync(); render(); toast('Enregistré ✅');
   };
@@ -202,7 +222,7 @@ function takeSession() {
   if (s.free && !confirm("Tu es censé avoir arrêté 🎉 Tu veux quand même noter une session ?")) return;
   if (early && !confirm(`Encore ${fmtCount(s.t - now)} à attendre.\nTu veux vraiment la prendre ? (Elle compte quand même, pas de panique.)`)) return;
   let kind = s.kind || 'reg';
-  if (early) kind = !list.length ? 'wake' : now >= win(now).ss ? 'sleep' : 'reg';
+  if (early) kind = !list.length ? 'wake' : now >= win(now).ss ? 'sleep' : (s.kind === 'meal' && s.t - now < 20 * MIN) ? 'meal' : 'reg';
   S.log.push({ t: now, n, kind, early: !!early });
   stepN = null; save(); sync(); render();
   toast(early ? 'Notée. Pas grave, on continue 💪' : `Session notée ✅ (${n} taffes)`);
@@ -220,6 +240,11 @@ function hold() {
 }
 
 /* ---------- rendu ---------- */
+const KEY_QUOTES = {
+  wake: ["Le matin", "C'est la nicotine qui a baissé pendant la nuit qui te réveille avec l'envie. Chaque matin, ce manque sera un peu plus petit."],
+  meal: ["Après le repas", "Ce n'est pas ton corps qui réclame, c'est une habitude collée au repas. Une habitude, ça se remplace."],
+  sleep: ["Avant de dormir", "Moins de nicotine le soir, c'est un sommeil plus profond. Tu te réveilleras plus reposé, et avec moins d'envie."],
+};
 const QUOTES = [
   ["20 minutes sans nicotine", "Ton cœur ralentit et ta tension redescend. Ton corps commence déjà à souffler."],
   ["72 heures", "La nicotine a quasiment quitté ton corps. Le pic du manque est passé, ensuite ça ne fait que descendre."],
@@ -278,8 +303,8 @@ function render() {
   $('#sToday').textContent = taffes(today);
   $('#sLeft').textContent = taffes(rem.map((x) => ({ n: x.size })));
   $('#sInterval').textContent = fmtI(p.I);
-  $('#sSize').textContent = free ? '0' : `${p.reg} · ${p.edge}`;
-  const q = QUOTES[(S.log.length + dayIndex(now) * 7) % QUOTES.length];
+  $('#sSize').textContent = free ? '0' : `${p.reg || '—'} · ${p.edge}`;
+  const q = (!free && s.t <= now + 15 * MIN && KEY_QUOTES[s.kind]) || QUOTES[(S.log.length + dayIndex(now) * 7) % QUOTES.length];
   if ($('#quoteT').textContent !== q[0]) { $('#quoteT').textContent = q[0]; $('#quoteB').textContent = q[1]; }
   $('#holdBtn').hidden = free || S.holds.includes(k) || d <= 0;
 
@@ -303,13 +328,14 @@ function renderPlan(d) {
   $('#planBar').style.width = Math.min(100, Math.max(0, (d / n) * 100)) + '%';
   const c = dayCounts(d);
   $('#planSummary').innerHTML = d >= n ? 'Plan terminé 🎉' :
-    `Aujourd'hui : <b>${c.p.edge} taffes au réveil</b>, puis <b>${c.p.reg} taffes toutes les ${fmtI(c.p.I)}</b>, et <b>${c.p.edge} au coucher</b> (${c.taffes} max). Au départ : ${baselinePerDay()}/jour. Arrêt complet le <b>${fmtDate(planEnd())}</b>.`;
+    (c.p.keyOnly ? `Aujourd'hui : <b>plus de sessions entre les moments clés</b>. Seulement <b>${c.p.edge} taffes</b> au réveil, après les repas et au coucher (${c.taffes} max).`
+    : `Aujourd'hui : <b>${c.p.edge} taffes</b> à chaque moment clé (réveil, après les repas, coucher), et entre les deux <b>${c.p.reg} taffes toutes les ${fmtI(c.p.I)}</b> (${c.taffes} max).`) + ` Au départ : ${baselinePerDay()}/jour. Arrêt complet le <b>${fmtDate(planEnd())}</b>.`;
   $('#planChart').innerHTML = svgLine(pts, pts[0] * 1.05, Math.max(0, d));
   const ml = mlPerTaffe(), mg = S.setup.mg;
-  let rows = '<tr><th>Sem.</th><th>Écart</th><th>Session</th><th>Réveil/<br>coucher</th><th>Taffes/j</th><th>mg/j</th></tr>';
+  let rows = '<tr><th>Sem.</th><th>Écart</th><th>Session</th><th>Moments<br>clés</th><th>Taffes/j</th><th>mg/j</th></tr>';
   for (let w = 0; w * 7 < n; w++) {
     const di = w * 7, cur = d >= di && d < di + 7, x = dayCounts(di);
-    rows += `<tr class="${cur ? 'cur' : ''}"><td>S${w + 1}</td><td>${fmtI(x.p.I)}</td><td>${x.p.reg}</td><td>${x.p.edge}</td><td>${x.taffes}</td><td>${n0(x.taffes * ml * mg)}</td></tr>`;
+    rows += `<tr class="${cur ? 'cur' : ''}"><td>S${w + 1}</td><td>${fmtI(x.p.I)}</td><td>${x.p.reg || '—'}</td><td>${x.p.edge}</td><td>${x.taffes}</td><td>${n0(x.taffes * ml * mg)}</td></tr>`;
   }
   rows += `<tr class="${d >= n ? 'cur' : ''}"><td>Ensuite</td><td>—</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>`;
   $('#planTable').innerHTML = rows;
@@ -426,11 +452,32 @@ async function sync(sub, test) {
 }
 
 /* ---------- SOS envie ---------- */
+const SOS_CTX = {
+  meal: ["Lève-toi de table dès que t'as fini : changer de pièce casse le réflexe « fin de repas = taffe ».",
+    "Brosse-toi les dents juste après manger : le goût du dentifrice coupe l'envie net.",
+    "Garde le rituel mais change la fin : un café, un thé, un carré de chocolat, sans la puff.",
+    "Va marcher 5 minutes dehors après le repas."],
+  morning: ["Ne prends pas ta puff avant d'être levé, habillé et d'avoir bu un grand verre d'eau.",
+    "Change l'ordre de ta routine : douche d'abord, session après.",
+    "La nuit, laisse la puff dans une autre pièce que ta chambre."],
+  night: ["Laisse la puff hors de la chambre : si elle n'est pas à portée de main, tu ne tires pas machinalement.",
+    "Remplace la dernière taffe par un rituel : tisane, écran coupé, 5 respirations lentes.",
+    "La nicotine stimule et fragmente le sommeil : moins tu en prends le soir, mieux tu dors."],
+};
+function sosContext(now) {
+  const w = dayWin(now);
+  if (w.meals.some((m) => now >= m - 30 * MIN && now <= m + 90 * MIN)) return 'meal';
+  if (now - w.ws < 2 * 3600000) return 'morning';
+  if (now > w.ss - 2 * 3600000) return 'night';
+  return null;
+}
 const SOS_TIPS = ['Bois un grand verre d\'eau, lentement.', 'Lève-toi, marche 2 minutes.', 'Occupe tes mains : téléphone, balle, élastique.', 'Rappelle-toi pourquoi tu arrêtes.', 'Chewing-gum ou fruit si t\'en as.'];
 let sosIv;
 function openSos() {
   $('#sos').hidden = false;
-  $('#sosTips').innerHTML = SOS_TIPS.sort(() => Math.random() - 0.5).slice(0, 3).map((x) => `<li>${x}</li>`).join('');
+  const ctx = sosContext(Date.now()), shuffle = (a) => [...a].sort(() => Math.random() - 0.5);
+  const tips = ctx ? [...shuffle(SOS_CTX[ctx]).slice(0, 2), ...shuffle(SOS_TIPS).slice(0, 1)] : shuffle(SOS_TIPS).slice(0, 3);
+  $('#sosTips').innerHTML = tips.map((x) => `<li>${x}</li>`).join('');
   let left = 180, phase = 0; const b = $('#breath'), txt = $('#breathTxt');
   const step = () => {
     $('#sosTimer').textContent = fmtCount(left * 1000);

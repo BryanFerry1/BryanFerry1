@@ -30,10 +30,10 @@
     <p class="muted lead">Arrêt progressif de la puff. On part de <b>ta</b> conso actuelle, et on espace les taffes un peu plus chaque jour. Au début ça bouge à peine.</p>
     <form id="setupForm" class="card form">
       <h3><i>01</i> Ta conso actuelle</h3>
-      <p class="small muted">Le plan fonctionne en <b>sessions</b> : quelques taffes d'un coup, puis une pause qui s'allonge chaque jour. Au réveil et au coucher, tu gardes une session plus grosse.</p>
+      <p class="small muted">Le plan fonctionne en <b>sessions</b> : quelques taffes d'un coup, puis une pause qui s'allonge chaque jour. Au réveil, après les repas et au coucher, tu gardes une session plus grosse.</p>
       <label>Une session toutes les… <span><input name="baseInterval" type="number" min="1" max="120" step="1" value="10"> min</span></label>
       <label>Taffes par session <span><input name="sessionSize" type="number" min="1" max="30" step="1" value="5"></span></label>
-      <label>Taffes au réveil et au coucher <span><input name="edgeSize" type="number" min="1" max="40" step="1" value="10"></span></label>
+      <label>Taffes aux moments clés <span><input name="edgeSize" type="number" min="1" max="40" step="1" value="10"></span></label>
       <label>Une puff me dure… <span><input name="daysPerPuff" type="number" min="0.5" max="60" step="0.5" value="5.5"> jours</span></label>
       <label>Liquide dans la puff <span><input name="mlPerPuff" type="number" min="1" max="50" step="0.5" value="22"> ml</span></label>
       <label>Nicotine <span><input name="mg" type="number" min="0" max="20" step="1" value="20"> mg/ml</span></label>
@@ -41,6 +41,9 @@
       <h3><i>02</i> Tes horaires</h3>
       <label>Réveil <input name="wake" type="time" value="08:00"></label>
       <label>Coucher <input name="sleep" type="time" value="00:00"></label>
+      <label>Fin du déjeuner <input name="lunch" type="time" value="13:00"></label>
+      <label>Fin du dîner <input name="dinner" type="time" value="20:30"></label>
+      <p class="small muted">Réveil, après les repas et coucher sont tes <b>moments clés</b> : ce sont les plus durs, donc tu y gardes une grosse session jusqu'à la fin du plan.</p>
       <h3><i>03</i> Rythme du sevrage</h3>
       <div class="pace" id="paceChoice"></div>
       <button class="btn primary big" type="submit">Lancer mon plan</button>
@@ -84,7 +87,7 @@
         <div class="stat"><div class="v" id="sToday">0</div><div class="l">taffes aujourd'hui</div></div>
         <div class="stat"><div class="v" id="sLeft">0</div><div class="l">encore autorisées</div></div>
         <div class="stat"><div class="v" id="sInterval">-</div><div class="l">entre 2 sessions</div></div>
-        <div class="stat"><div class="v" id="sSize">-</div><div class="l">taffes / session · réveil &amp; coucher</div></div>
+        <div class="stat"><div class="v" id="sSize">-</div><div class="l">taffes / session · moments clés</div></div>
       </div>
 
       <div class="card" id="installCard" hidden>
@@ -117,6 +120,7 @@
           <li><b>Baisse le taux de nicotine</b> dès que tu peux : passer d'une puff 20 mg à 10 mg vers la moitié du plan, puis 0 mg sur la fin, ça rend l'arrêt final beaucoup plus facile. Une cigarette électronique rechargeable permet de baisser par petits paliers (18 → 12 → 6 → 3 → 0).</li>
           <li><b>Les substituts nicotiniques</b> (patchs, gommes) sont remboursés sur prescription — médecin, pharmacien, infirmier ou sage-femme peuvent les prescrire.</li>
           <li><b>Tabac Info Service : 39 89</b> (gratuit) — un tabacologue peut te suivre gratuitement.</li>
+          <li><b>Tes moments clés</b> (réveil, après les repas, coucher) sont gardés jusqu'à la fin : ce sont eux qui partent en dernier. Sur la dernière semaine, il ne reste plus qu'eux. Prépare un remplaçant pour chacun (dents brossées après manger, verre d'eau au réveil, tisane le soir).</li>
           <li>Une envie dure en général <b>3 à 5 minutes</b>. Bois de l'eau, bouge, respire : elle passe.</li>
           <li>Si tu craques, ce n'est pas grave : note-la quand même. L'appli s'adapte et repousse la suivante.</li>
         </ul>
@@ -179,9 +183,11 @@
         <h3>Profil</h3>
         <label>Réveil <input name="wake" type="time"></label>
         <label>Coucher <input name="sleep" type="time"></label>
+        <label>Fin du déjeuner <input name="lunch" type="time"></label>
+        <label>Fin du dîner <input name="dinner" type="time"></label>
         <label>Session toutes les (départ) <span><input name="baseInterval" type="number" min="1" max="120" step="1"> min</span></label>
         <label>Taffes par session (départ) <span><input name="sessionSize" type="number" min="1" max="30" step="1"></span></label>
-        <label>Réveil &amp; coucher (départ) <span><input name="edgeSize" type="number" min="1" max="40" step="1"></span></label>
+        <label>Moments clés (départ) <span><input name="edgeSize" type="number" min="1" max="40" step="1"></span></label>
         <label>Nicotine actuelle <span><input name="mg" type="number" min="0" max="20" step="1"> mg/ml</span></label>
         <label>Prix d'une puff <span><input name="price" type="number" min="0" max="100" step="0.5"> €</span></label>
         <label>Liquide par puff <span><input name="mlPerPuff" type="number" min="1" max="50" step="0.5"> ml</span></label>
