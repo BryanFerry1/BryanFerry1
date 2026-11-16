@@ -1,17 +1,21 @@
 'use strict';
-/* Puff Stop — arrêt progressif de la puff.
-   Tout l'état est dans localStorage ; le serveur (Netlify) ne reçoit que
-   l'abonnement push + les heures des prochaines notifications. */
+/* Puff Stop — arrêt progressif de la puff, par sessions.
+   Une session = quelques taffes d'un coup. L'écart entre sessions s'allonge chaque jour,
+   la taille des sessions baisse doucement. Session du réveil et du coucher gardées (plus grosses).
+   Tout l'état est dans localStorage ; le serveur ne reçoit que l'abonnement push + les heures des notifs. */
 
 const VAPID_PUBLIC = 'BOyUJLsn15HycNpq7-HFcleTZ4OOidJUnvEL7ud3gukZfyhU45Ih7Xtg9719s3qzv97C7rsYeV60sxdNL6YWAjU';
 const KEY = 'puffstop.v1';
 const MIN = 60000, DAY = 86400000;
-const I_END = 240; // écart final (min) avant l'arrêt complet : ~4 taffes/jour
+const I_END = 240;        // écart final entre sessions (min)
+const BED_BEFORE = 30;    // session du coucher : 30 min avant l'heure du coucher
+const HALF_LIFE = 120;    // demi-vie de la nicotine ≈ 2 h
 const PACES = {
-  doux:   { days: 84, name: 'Doux',   desc: '12 semaines · ça bouge très lentement au début' },
+  doux:   { days: 84, name: 'Doux',   desc: '12 semaines · ça bouge très lentement' },
   normal: { days: 56, name: 'Normal', desc: '8 semaines · recommandé' },
   rapide: { days: 35, name: 'Rapide', desc: '5 semaines · si tu es très motivé' },
 };
+const KIND = { wake: '☀️ Session du réveil', reg: '🟢 Session', sleep: '🌙 Session du coucher' };
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -22,17 +26,22 @@ function load() {
   return { id: (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()), setup: null, log: [], holds: [], puffStart: null, notif: 'all' };
 }
 let S = load();
+if (S.setup && !S.setup.v2) { // migration vers le mode sessions
+  Object.assign(S.setup, { v2: true, baseInterval: 10, sessionSize: 5, edgeSize: 10 });
+  S.log = S.log.map((e) => ({ ...e, n: e.n || 1, kind: e.kind || 'reg' }));
+}
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
+save();
 
-/* ---------- temps & plan ---------- */
+/* ---------- temps ---------- */
 const hm = (s) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
 function geo() {
   const wm = hm(S.setup.wake); let sm = hm(S.setup.sleep);
   if (sm <= wm) sm += 1440;
   const W = sm - wm, night = 1440 - W;
   const bnd = (sm + night / 2) % 1440;           // milieu de la nuit = changement de jour
-  const off = ((wm - bnd) % 1440 + 1440) % 1440; // du changement de jour au réveil
-  return { W, bnd, off };
+  const off = ((wm - bnd) % 1440 + 1440) % 1440;
+  return { W, night, bnd, off };
 }
 function dayStart(t) {
   const { bnd } = geo(); const d = new Date(t); d.setHours(0, 0, 0, 0);
@@ -40,74 +49,99 @@ function dayStart(t) {
 }
 const ymd = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const dayKey = (t) => ymd(dayStart(t) + geo().off * MIN);
-function win(t) { const g = geo(); const ws = dayStart(t) + g.off * MIN; return { ws, we: ws + g.W * MIN }; }
+function win(t) { const g = geo(); const ws = dayStart(t) + g.off * MIN, we = ws + g.W * MIN; return { ws, we, ss: Math.max(ws + MIN, we - BED_BEFORE * MIN) }; }
+const nextDayRef = (t) => win(t).we + (geo().night / 2 + 1) * MIN;
 const dayIndex = (t) => Math.round((dayStart(t) - dayStart(S.setup.start)) / DAY);
 function planDay(t) { const k = dayKey(t); return dayIndex(t) - S.holds.filter((h) => h <= k).length; }
 const N = () => PACES[S.setup.pace].days;
-function interval(d) { // minutes entre 2 taffes au jour d du plan
-  const I0 = S.setup.baseInterval, n = N();
-  if (d <= 0) return I0;
-  if (d >= n) return Infinity;
-  const x = d / (n - 1);
-  return I0 * Math.pow(Math.max(I_END, I0 * 2) / I0, Math.pow(x, 1.35)); // courbe douce au début
+
+/* ---------- plan ---------- */
+function planAt(d) {
+  const n = N(), st = S.setup;
+  if (d >= n) return { free: true, I: Infinity, reg: 0, edge: 0 };
+  const x = Math.max(0, d) / (n - 1);
+  const I0 = st.baseInterval;
+  const I = I0 * Math.pow(Math.max(I_END, I0 * 2) / I0, x);            // 10 → 10,6 → 11,2 → … → 4 h
+  const regEnd = Math.max(1, Math.round(st.sessionSize * 0.4));
+  const edgeEnd = Math.max(1, Math.round(st.edgeSize * 0.3));
+  const reg = Math.max(1, Math.round(st.sessionSize + (regEnd - st.sessionSize) * x));
+  const edge = Math.max(reg, Math.round(st.edgeSize + (edgeEnd - st.edgeSize) * x));
+  return { I, reg, edge };
 }
-function budget(d) { if (d >= N()) return 0; return Math.max(1, Math.floor(geo().W / interval(d))); }
-const baselinePerDay = () => geo().W / S.setup.baseInterval;
+function dayCounts(d) { // sessions/taffes prévues sur une journée complète
+  const p = planAt(d); if (p.free) return { sessions: 0, taffes: 0, regN: 0, p };
+  const span = geo().W - BED_BEFORE;
+  const regN = Math.max(0, Math.ceil(span / p.I) - 1);
+  return { sessions: regN + 2, taffes: 2 * p.edge + regN * p.reg, regN, p };
+}
+const baselinePerDay = () => dayCounts(0).taffes;
 const mlPerTaffe = () => S.setup.mlPerPuff / (S.setup.daysPerPuff * baselinePerDay());
-const taffesOf = (k) => S.log.filter((e) => dayKey(e.t) === k);
+const sessionsOf = (k) => S.log.filter((e) => dayKey(e.t) === k);
+const taffes = (list) => list.reduce((s, e) => s + (e.n || 1), 0);
 
+function mk(t, kind) {
+  const p = planAt(planDay(t)); if (p.free) return { free: true };
+  return { t, kind, size: kind === 'reg' ? p.reg : p.edge, I: p.I };
+}
+function slotAfter(prevT, prevKind) {
+  if (prevKind === 'sleep') return mk(win(nextDayRef(prevT)).ws, 'wake');
+  const p = planAt(planDay(prevT)); if (p.free) return { free: true };
+  const { ss } = win(prevT);
+  const t = prevT + p.I * MIN;
+  return t >= ss ? mk(Math.max(ss, prevT), 'sleep') : mk(t, 'reg');
+}
 function nextAllowed(now = Date.now()) {
-  for (let k = 0; k < 4; k++) {
-    const ref = now + k * DAY;
-    const d = planDay(ref);
-    if (d >= N()) return { free: true };
-    const { ws, we } = win(ref);
-    if (k === 0 && we < now) continue;
-    const I = interval(d), B = budget(d);
-    const list = taffesOf(dayKey(ref));
-    if (list.length >= B) continue;
-    let t = list.length ? list[list.length - 1].t + I * MIN : ws;
-    t = Math.max(t, ws);
-    if (t > we) continue;
-    return { t, d, I, B, left: B - list.length, sameDay: k === 0 && dayKey(t) === dayKey(now) };
-  }
-  return { t: null };
+  if (planAt(planDay(now)).free) return { free: true };
+  const list = sessionsOf(dayKey(now)), { ws, we } = win(now);
+  if (!list.length) return now < we ? mk(ws, 'wake') : mk(win(nextDayRef(now)).ws, 'wake');
+  const last = list[list.length - 1];
+  return slotAfter(last.t, last.kind);
+}
+function upcoming(now, horizon) {
+  const out = []; let s = nextAllowed(now), g = 0;
+  while (s && !s.free && s.t < horizon && g++ < 400) { out.push(s); s = slotAfter(s.t, s.kind); }
+  return out;
+}
+const remainingToday = (now) => { const k = dayKey(now); return upcoming(now, now + 2 * DAY).filter((s) => dayKey(s.t) === k); };
+
+/* notifications : planning des ~36 prochaines heures */
+function schedule() {
+  const now = Date.now();
+  if (S.notif === 'off' || !S.setup) return [];
+  return upcoming(now, now + 36 * 3600000).filter((s) => s.t > now).filter((s) =>
+    S.notif === 'all' || s.kind === 'wake' || (S.notif === 'min15' && (s.kind === 'sleep' || s.I >= 15))
+  ).map((s) => ({
+    t: s.t, title: KIND[s.kind] + ' autorisée',
+    body: s.kind === 'wake' ? `${s.size} taffes pour bien démarrer. Ensuite ${planAt(planDay(s.t)).reg} taffes toutes les ${fmtI(s.I)}.`
+        : s.kind === 'sleep' ? `${s.size} taffes avant de dormir. Bonne nuit 💪`
+        : `${s.size} taffes max. Prends-les seulement si t'en as vraiment envie.`,
+  }));
 }
 
-/* planning des notifs pour ~36 h (en supposant que tu prends chaque taffe autorisée) */
-function schedule() {
-  const now = Date.now(), items = [];
-  if (S.notif === 'off' || !S.setup) return items;
-  const n = nextAllowed(now);
-  if (n.free || !n.t) return items;
-  const horizon = now + 36 * 3600000;
-  let t = n.t, k = dayKey(t), left = n.left, I = n.I, first = !n.sameDay || !taffesOf(k).length;
-  let guard = 0;
-  while (t < horizon && guard++ < 500) {
-    const { we } = win(t);
-    if (left > 0 && t <= we) {
-      const morning = first;
-      const wanted = S.notif === 'all' || morning || (S.notif === 'min15' && I >= 15);
-      if (t > now && wanted) {
-        items.push({ t, title: morning ? '☀️ Première taffe autorisée' : '🟢 Taffe autorisée',
-          body: morning ? `Aujourd'hui : ${left} taffes max, une toutes les ${fmtI(I)}. Tu gères 💪`
-                        : `Il t'en reste ${left} aujourd'hui. Prends-la seulement si t'en as vraiment envie.` });
-      }
-      first = false; left--; t += I * MIN;
-    } else { // jour suivant : juste après le milieu de la nuit qui suit
-      const tomorrowWs = win(we + ((1440 - geo().W) / 2 + 1) * MIN).ws;
-      const d = planDay(tomorrowWs);
-      if (d >= N()) break;
-      t = tomorrowWs; I = interval(d); left = budget(d); first = true;
-    }
+/* ---------- nicotine (modèle : demi-vie 2 h) ---------- */
+const K = Math.LN2 / HALF_LIFE;
+const decay = (dtMs) => Math.exp(-K * dtMs / MIN);
+function mgAt(t) { let mg = S.setup.mg; const h = S.mgHistory || []; if (h.length) { mg = h[0].mg; for (const x of h) if (x.t <= t) mg = x.mg; } return mg; }
+const mg0 = () => ((S.mgHistory || [])[0] || { mg: S.setup.mg }).mg;
+function nicotine(now) {
+  const ml = mlPerTaffe();
+  const cur = S.log.filter((e) => e.t <= now && now - e.t < 2 * DAY).reduce((s, e) => s + (e.n || 1) * ml * mgAt(e.t) * decay(now - e.t), 0);
+  // ton ancien rythme (jour 0 du plan) aux mêmes heures, hier + aujourd'hui
+  const p0 = planAt(0); let base = 0;
+  for (const ref of [now - DAY, now]) {
+    const { ws, ss } = win(ref);
+    const add = (t, n) => { if (t <= now) base += n * ml * mg0() * decay(now - t); };
+    add(ws, p0.edge);
+    for (let t = ws + p0.I * MIN; t < ss; t += p0.I * MIN) add(t, p0.reg);
+    add(ss, p0.edge);
   }
-  return items;
+  return { cur, base };
 }
 
 /* ---------- formats ---------- */
 function fmtI(I) {
   if (!isFinite(I)) return '—';
-  if (I < 60) return (Math.round(I * 2) / 2).toString().replace('.', ',') + ' min';
+  if (I < 60) return Math.round(I) + ' min';
   const h = Math.floor(I / 60), m = Math.round(I % 60); return h + 'h' + (m ? String(m).padStart(2, '0') : '');
 }
 const fmtClock = (t) => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -118,6 +152,7 @@ function fmtCount(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${m}:${String(ss).padStart(2, '0')}`;
 }
+function fmtDur(min) { min = Math.max(0, Math.round(min)); return min < 60 ? min + ' min' : Math.floor(min / 60) + ' h ' + String(min % 60).padStart(2, '0'); }
 function toast(msg) { const el = $('#toast'); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 2600); }
 
 /* ---------- onboarding / réglages ---------- */
@@ -132,39 +167,45 @@ function showOnboarding() {
   $('#setupForm').onsubmit = (e) => {
     e.preventDefault(); const f = new FormData(e.target);
     S.setup = {
-      start: Date.now(), pace: pickedPace,
-      baseInterval: +f.get('baseInterval'), daysPerPuff: +f.get('daysPerPuff'), mlPerPuff: +f.get('mlPerPuff'),
+      v2: true, start: Date.now(), pace: pickedPace,
+      baseInterval: +f.get('baseInterval'), sessionSize: +f.get('sessionSize'), edgeSize: +f.get('edgeSize'),
+      daysPerPuff: +f.get('daysPerPuff'), mlPerPuff: +f.get('mlPerPuff'),
       mg: +f.get('mg'), price: +f.get('price'), wake: f.get('wake'), sleep: f.get('sleep'),
     };
     S.puffStart = Date.now(); S.mgHistory = [{ t: Date.now(), mg: S.setup.mg }];
     save(); start();
   };
 }
+const SETTINGS = ['wake', 'sleep', 'baseInterval', 'sessionSize', 'edgeSize', 'mg', 'price', 'mlPerPuff'];
 function fillSettings() {
   const f = $('#settingsForm');
-  ['wake', 'sleep', 'mg', 'price', 'mlPerPuff'].forEach((k) => (f.elements[k].value = S.setup[k]));
+  SETTINGS.forEach((k) => (f.elements[k].value = S.setup[k]));
   let p = S.setup.pace;
   paceButtons($('#paceChoice2'), p, (x) => (p = x));
   f.onsubmit = (e) => {
     e.preventDefault(); const d = new FormData(f);
     const mg = +d.get('mg');
-    if (mg !== S.setup.mg) (S.mgHistory = S.mgHistory || []).push({ t: Date.now(), mg });
-    Object.assign(S.setup, { wake: d.get('wake'), sleep: d.get('sleep'), mg, price: +d.get('price'), mlPerPuff: +d.get('mlPerPuff'), pace: p });
+    if (mg !== S.setup.mg) (S.mgHistory = S.mgHistory || [{ t: S.setup.start, mg: S.setup.mg }]).push({ t: Date.now(), mg });
+    SETTINGS.forEach((k) => (S.setup[k] = k === 'wake' || k === 'sleep' ? d.get(k) : +d.get(k)));
+    S.setup.pace = p;
     save(); sync(); render(); toast('Enregistré ✅');
   };
   $('#notifMode').value = S.notif;
 }
 
 /* ---------- actions ---------- */
-function takePuff() {
-  const now = Date.now(), n = nextAllowed(now);
-  const early = !n.free && n.t && n.t > now;
-  if (n.free && !confirm("Tu es censé avoir arrêté 🎉 Tu veux quand même noter une taffe ?")) return;
-  if (early && n.sameDay && !confirm(`Encore ${fmtCount(n.t - now)} à attendre.\nTu veux vraiment la prendre ? (Elle compte quand même, pas de panique.)`)) return;
-  if (early && !n.sameDay && !confirm("Tu as utilisé toutes tes taffes d'aujourd'hui.\nTu craques quand même ? Note-la, ça aide à rester honnête.")) return;
-  S.log.push({ t: now, early: !!early });
-  save(); sync(); render();
-  toast(early ? 'Notée. Pas grave, on continue 💪' : 'Notée ✅');
+let stepN = null, stepFor = null;
+function takeSession() {
+  const now = Date.now(), s = nextAllowed(now), list = sessionsOf(dayKey(now));
+  const n = stepN ?? (s.size || 1);
+  const early = !s.free && s.t > now;
+  if (s.free && !confirm("Tu es censé avoir arrêté 🎉 Tu veux quand même noter une session ?")) return;
+  if (early && !confirm(`Encore ${fmtCount(s.t - now)} à attendre.\nTu veux vraiment la prendre ? (Elle compte quand même, pas de panique.)`)) return;
+  let kind = s.kind || 'reg';
+  if (early) kind = !list.length ? 'wake' : now >= win(now).ss ? 'sleep' : 'reg';
+  S.log.push({ t: now, n, kind, early: !!early });
+  stepN = null; save(); sync(); render();
+  toast(early ? 'Notée. Pas grave, on continue 💪' : `Session notée ✅ (${n} taffes)`);
 }
 function undo() {
   const last = S.log[S.log.length - 1];
@@ -181,114 +222,131 @@ function hold() {
 /* ---------- rendu ---------- */
 const TIPS = [
   "Une envie dure 3 à 5 minutes. Si tu attends, elle redescend toute seule.",
-  "Garde la puff loin de toi (sac, autre pièce) : moins tu l'as en main, moins tu tires machinalement.",
-  "Associe chaque taffe autorisée à un moment : tu la prends, tu la poses. Plus de taffes « en pilote automatique ».",
+  "Entre deux sessions, range la puff loin de toi (sac, autre pièce).",
+  "Pendant une session, compte tes taffes. Plus de taffes « en pilote automatique ».",
   "Bois un grand verre d'eau quand l'envie arrive. Ça occupe la bouche et les mains.",
-  "Les premiers jours, l'écart bouge à peine : le but est surtout de casser l'automatisme.",
-  "Le manque de nicotine culmine vers 3 jours après une grosse baisse, puis diminue nettement.",
-  "Si tu peux, passe à une puff 10 mg vers la moitié du plan : l'arrêt final sera beaucoup plus facile.",
-  "Chewing-gum, cure-dent, élastique au poignet : trouve un truc pour les mains et la bouche.",
+  "Les premiers jours l'écart bouge à peine : le but est surtout de casser l'automatisme.",
+  "Le manque culmine environ 3 jours après une grosse baisse, puis diminue nettement.",
+  "Si tu peux, passe à une puff 10 mg vers la moitié du plan : l'arrêt final sera bien plus facile.",
+  "La nicotine perd la moitié de son effet en 2 h environ. Chaque session repoussée, c'est ton corps qui se nettoie.",
   "Tabac Info Service (39 89, gratuit) peut te mettre en contact avec un tabacologue.",
 ];
 let lastSyncKey = '';
 function render() {
   if (!S.setup) return;
-  const now = Date.now(), k = dayKey(now), d = planDay(now), n = nextAllowed(now);
-  const today = taffesOf(k), I = interval(d), B = budget(d);
-  const free = d >= N();
+  const now = Date.now(), k = dayKey(now), d = planDay(now), s = nextAllowed(now);
+  const today = sessionsOf(k), p = planAt(d), free = !!p.free;
+  const rem = free ? [] : remainingToday(now);
 
   $('#dayLabel').textContent = free ? '🎉 Libéré' : `Jour ${dayIndex(now) + 1} · palier ${Math.max(0, d) + 1}/${N()}`;
   $('#paceLabel').textContent = `Plan ${PACES[S.setup.pace].name.toLowerCase()} · fin prévue le ${fmtDate(planEnd())}`;
 
   const btn = $('#puffBtn'), fg = $('#ringFg');
   btn.classList.remove('early', 'locked');
+  if (stepFor !== (s.t || 0)) { stepFor = s.t || 0; stepN = null; }
+  $('#stepN').textContent = stepN ?? (s.size || 1);
   if (free) {
     $('#ringCaption').textContent = 'Plan terminé'; $('#countdown').textContent = '0'; $('#ringSub').textContent = 'taffe autorisée. Tu es libre.';
-    fg.style.strokeDashoffset = 0; btn.classList.add('locked');
-  } else if (!n.t) {
-    $('#ringCaption').textContent = 'Plus de taffes'; $('#countdown').textContent = '—'; $('#ringSub').textContent = '';
-  } else if (n.t <= now) {
-    $('#ringCaption').textContent = 'Tu as le droit'; $('#countdown').textContent = '✓';
-    $('#ringSub').textContent = `depuis ${fmtClock(n.t)}`;
+    $('#kindLabel').textContent = ''; fg.style.strokeDashoffset = 0; btn.classList.add('locked');
+  } else if (s.t <= now) {
+    $('#ringCaption').textContent = 'Tu as le droit'; $('#countdown').textContent = s.size + ' taffes';
+    $('#ringSub').textContent = `depuis ${fmtClock(s.t)}`;
+    $('#kindLabel').textContent = KIND[s.kind] + ' disponible';
     fg.style.strokeDashoffset = 0; fg.style.stroke = 'var(--ac)';
   } else {
-    const span = n.sameDay && today.length ? n.I * MIN : Math.max(n.t - (today.length ? today[today.length - 1].t : now), 1);
-    const frac = 1 - Math.min(1, (n.t - now) / span);
-    $('#ringCaption').textContent = n.sameDay ? 'Prochaine taffe dans' : 'Fini pour aujourd\'hui';
-    $('#countdown').textContent = fmtCount(n.t - now);
-    $('#ringSub').textContent = (n.sameDay ? 'à ' : 'reprise ') + (n.sameDay ? fmtClock(n.t) : fmtDate(n.t) + ' ' + fmtClock(n.t));
-    fg.style.strokeDashoffset = 553 * (1 - (n.sameDay ? frac : 0)); fg.style.stroke = 'var(--warn)';
-    btn.classList.add(n.sameDay ? 'early' : 'locked');
+    const sameDay = dayKey(s.t) === k;
+    const last = today[today.length - 1];
+    const span = last ? s.t - last.t : s.t - now;
+    const frac = 1 - Math.min(1, (s.t - now) / Math.max(span, 1));
+    $('#ringCaption').textContent = sameDay ? 'Prochaine session dans' : 'Fini pour aujourd\'hui';
+    $('#countdown').textContent = fmtCount(s.t - now);
+    $('#ringSub').textContent = `${s.size} taffes à ` + (sameDay ? fmtClock(s.t) : fmtDate(s.t) + ' ' + fmtClock(s.t));
+    $('#kindLabel').textContent = 'Prochaine : ' + KIND[s.kind].toLowerCase().replace(/^\S+ /, '');
+    fg.style.strokeDashoffset = 553 * (1 - (sameDay ? frac : 0)); fg.style.stroke = 'var(--warn)';
+    btn.classList.add(sameDay ? 'early' : 'locked');
   }
-  const last = S.log[S.log.length - 1];
-  $('#undoBtn').hidden = !(last && now - last.t < 5 * MIN);
+  const lastE = S.log[S.log.length - 1];
+  $('#undoBtn').hidden = !(lastE && now - lastE.t < 5 * MIN);
 
-  $('#sToday').textContent = today.length;
-  $('#sLeft').textContent = free ? 0 : Math.max(0, B - today.length);
-  $('#sInterval').textContent = fmtI(I);
-  $('#sMl').textContent = free ? '0' : n1(Math.max(0, B - today.length) * mlPerTaffe());
+  $('#sToday').textContent = taffes(today);
+  $('#sLeft').textContent = taffes(rem.map((x) => ({ n: x.size })));
+  $('#sInterval').textContent = fmtI(p.I);
+  $('#sSize').textContent = free ? '0' : `${p.reg} · ${p.edge}`;
   $('#tipCard').textContent = '💡 ' + TIPS[(dayIndex(now) + Math.floor(now / 3600000)) % TIPS.length];
   $('#holdBtn').hidden = free || S.holds.includes(k) || d <= 0;
 
   renderPlan(d); renderStats(); renderNotifUi();
-  const key = JSON.stringify([S.log.length, S.holds.length, S.notif, k, n.t]);
+  const key = JSON.stringify([S.log.length, S.holds.length, S.notif, k, s.t]);
   if (key !== lastSyncKey) { lastSyncKey = key; sync(); }
 }
 function planEnd() { return dayStart(S.setup.start) + (N() + S.holds.length) * DAY + geo().off * MIN; }
 
-function svgLine(points, maxY, opts = {}) {
+function svgLine(points, maxY, mark) {
   const w = 320, h = 140, pad = 4;
   const xs = (i) => pad + (i / Math.max(1, points.length - 1)) * (w - 2 * pad);
   const ys = (v) => h - pad - (v / maxY) * (h - 2 * pad);
   const path = points.map((v, i) => (i ? 'L' : 'M') + xs(i).toFixed(1) + ' ' + ys(v).toFixed(1)).join('');
-  const mark = opts.mark != null && opts.mark < points.length ? `<circle cx="${xs(opts.mark)}" cy="${ys(points[opts.mark])}" r="5" fill="var(--warn)"/>` : '';
-  return `<svg viewBox="0 0 ${w} ${h}"><path d="${path} L${xs(points.length - 1)} ${h - pad} L${pad} ${h - pad}Z" fill="#3ddc8418"/><path d="${path}" fill="none" stroke="var(--ac)" stroke-width="2.5"/>${mark}</svg>`;
+  const m = mark != null && mark < points.length ? `<circle cx="${xs(mark)}" cy="${ys(points[mark])}" r="5" fill="var(--warn)"/>` : '';
+  return `<svg viewBox="0 0 ${w} ${h}"><path d="${path} L${xs(points.length - 1)} ${h - pad} L${pad} ${h - pad}Z" fill="#3ddc8418"/><path d="${path}" fill="none" stroke="var(--ac)" stroke-width="2.5"/>${m}</svg>`;
 }
 function renderPlan(d) {
   const n = N(), pts = [];
-  for (let i = 0; i <= n; i++) pts.push(budget(i));
-  const pct = Math.min(100, Math.max(0, (d / n) * 100));
-  $('#planBar').style.width = pct + '%';
+  for (let i = 0; i <= n; i++) pts.push(dayCounts(i).taffes);
+  $('#planBar').style.width = Math.min(100, Math.max(0, (d / n) * 100)) + '%';
+  const c = dayCounts(d);
   $('#planSummary').innerHTML = d >= n ? 'Plan terminé 🎉' :
-    `Aujourd'hui : <b>${budget(d)} taffes max</b>, une toutes les <b>${fmtI(interval(d))}</b>. Départ : ${n0(baselinePerDay())}/jour. Arrêt complet le <b>${fmtDate(planEnd())}</b>.`;
-  $('#planChart').innerHTML = svgLine(pts, pts[0] * 1.05, { mark: Math.max(0, d) });
+    `Aujourd'hui : <b>${c.p.edge} taffes au réveil</b>, puis <b>${c.p.reg} taffes toutes les ${fmtI(c.p.I)}</b>, et <b>${c.p.edge} au coucher</b> (${c.taffes} max). Au départ : ${baselinePerDay()}/jour. Arrêt complet le <b>${fmtDate(planEnd())}</b>.`;
+  $('#planChart').innerHTML = svgLine(pts, pts[0] * 1.05, Math.max(0, d));
   const ml = mlPerTaffe(), mg = S.setup.mg;
-  let rows = '<tr><th>Semaine</th><th>Écart</th><th>Taffes/j</th><th>ml/j</th><th>mg nico/j</th></tr>';
+  let rows = '<tr><th>Sem.</th><th>Écart</th><th>Session</th><th>Réveil/<br>coucher</th><th>Taffes/j</th><th>mg/j</th></tr>';
   for (let w = 0; w * 7 < n; w++) {
-    const di = w * 7, cur = d >= di && d < di + 7;
-    rows += `<tr class="${cur ? 'cur' : ''}"><td>S${w + 1}</td><td>${fmtI(interval(di))}</td><td>${budget(di)}</td><td>${n1(budget(di) * ml)}</td><td>${n0(budget(di) * ml * mg)}</td></tr>`;
+    const di = w * 7, cur = d >= di && d < di + 7, x = dayCounts(di);
+    rows += `<tr class="${cur ? 'cur' : ''}"><td>S${w + 1}</td><td>${fmtI(x.p.I)}</td><td>${x.p.reg}</td><td>${x.p.edge}</td><td>${x.taffes}</td><td>${n0(x.taffes * ml * mg)}</td></tr>`;
   }
-  rows += `<tr class="${d >= n ? 'cur' : ''}"><td>Ensuite</td><td>—</td><td>0</td><td>0</td><td>0</td></tr>`;
+  rows += `<tr class="${d >= n ? 'cur' : ''}"><td>Ensuite</td><td>—</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>`;
   $('#planTable').innerHTML = rows;
 }
-function mgAt(t) { let mg = S.setup.mg; const h = S.mgHistory || []; for (const x of h) if (x.t <= t) mg = x.mg; return h.length ? mg : S.setup.mg; }
+function renderNicotine(now) {
+  const { cur, base } = nicotine(now);
+  const ratio = base > 0 ? cur / base : 0;
+  const less = Math.max(0, 1 - ratio);
+  $('#nicoNow').textContent = base > 0 ? (ratio <= 1 ? '−' + Math.round(less * 100) + ' %' : '+' + Math.round((ratio - 1) * 100) + ' %') : '-';
+  $('#nicoNowL').textContent = ratio <= 1 ? 'de nicotine dans ton corps par rapport à ton ancien rythme, à cette heure-ci' : 'de nicotine en plus que ton ancien rythme à cette heure-ci';
+  $('#nicoBar').style.width = Math.min(100, ratio * 100) + '%';
+  const last = S.log[S.log.length - 1];
+  if (!last) { $('#nicoOut').textContent = '-'; $('#nicoOutBar').style.width = '0'; $('#nicoText').textContent = ''; return; }
+  const dt = (now - last.t) / MIN, out = 1 - Math.pow(0.5, dt / HALF_LIFE);
+  $('#nicoOut').textContent = Math.floor(out * 100) + ' %';
+  $('#nicoOutBar').style.width = out * 100 + '%';
+  const to = (p) => HALF_LIFE * Math.log2(1 / (1 - p)) - dt;
+  const steps = [[0.5, '50 %'], [0.9, '90 %'], [0.97, '97 % (quasi plus de nicotine)']].filter(([p]) => to(p) > 0);
+  $('#nicoText').innerHTML = `Dernière session il y a ${fmtDur(dt)}.` +
+    (steps.length ? ' Si tu ne vapotes pas : ' + steps.map(([p, l]) => `${l} dans ${fmtDur(to(p))}`).join(', ') + '.' : ' Ton corps a quasiment éliminé la nicotine 🎉') +
+    '<br>Repère : la nicotine perd la moitié de sa quantité toutes les ~2 h. Son déchet (la cotinine) met 3 à 4 jours à partir après l\'arrêt. Estimation, pas une mesure médicale.';
+}
 function renderStats() {
   const now = Date.now(), base = baselinePerDay(), ml = mlPerTaffe(), days = dayIndex(now) + 1;
-  // jour courant compté au prorata du temps écoulé dans la journée
+  renderNicotine(now);
   const { ws } = win(now), W = geo().W;
   const fracToday = Math.min(1, Math.max(0, (now - ws) / (W * MIN)));
   const expected = base * (days - 1 + fracToday);
-  const avoided = Math.max(0, expected - S.log.length);
-  const mgAvoided = avoided * ml * S.setup.mg;
+  const avoided = Math.max(0, expected - taffes(S.log));
   $('#stAvoided').textContent = n0(avoided);
   $('#stMl').textContent = n1(avoided * ml);
-  $('#stMg').textContent = n0(mgAvoided);
+  $('#stMg').textContent = n0(avoided * ml * mg0());
   $('#stMoney').textContent = (avoided * ml / S.setup.mlPerPuff * S.setup.price).toFixed(2).replace('.', ',') + ' €';
-  // baisse sur les 7 derniers jours complets (ou ce qui existe)
   let sum = 0, cnt = 0, streak = 0, streakOn = true;
   const bars = [];
   for (let i = 0; i < 14; i++) {
     const t = now - i * DAY; if (dayIndex(t) < 0) break;
-    const k = dayKey(t), c = taffesOf(k).length, b = budget(planDay(t));
+    const kk = dayKey(t), c = taffes(sessionsOf(kk)), b = dayCounts(planDay(t)).taffes;
     if (i > 0 && i <= 7) { sum += c; cnt++; }
     if (i > 0) { if (streakOn && c <= b) streak++; else streakOn = false; }
-    bars.unshift({ k, c, b, today: i === 0 });
+    bars.unshift({ k: kk, c, b, today: i === 0 });
   }
-  if (!cnt) { sum = S.log.length; cnt = fracToday || 1; }
-  const reduc = Math.max(0, 1 - sum / cnt / base);
-  $('#stReduc').textContent = Math.round(reduc * 100) + ' %';
+  if (!cnt) { sum = taffes(S.log); cnt = fracToday || 1; }
+  $('#stReduc').textContent = Math.round(Math.max(0, 1 - sum / cnt / base) * 100) + ' %';
   $('#stStreak').textContent = streak;
-  // histogramme
   const w = 320, h = 140, maxV = Math.max(1, ...bars.map((x) => Math.max(x.c, x.b))) * 1.1, bw = w / 14;
   let svg = `<svg viewBox="0 0 ${w} ${h + 16}">`;
   bars.forEach((x, i) => {
@@ -298,17 +356,15 @@ function renderStats() {
     svg += `<text x="${X + (bw - 6) / 2}" y="${h + 12}" fill="var(--mu)" font-size="9" text-anchor="middle">${+x.k.slice(8)}</text>`;
   });
   $('#histChart').innerHTML = svg + '</svg>';
-  // puff actuelle
-  const since = S.log.filter((e) => e.t >= (S.puffStart || 0)).length;
+  const since = taffes(S.log.filter((e) => e.t >= (S.puffStart || 0)));
   const used = since * ml, rest = Math.max(0, S.setup.mlPerPuff - used);
-  const curB = budget(planDay(now)) || 1;
+  const curB = dayCounts(planDay(now)).taffes || 1;
   $('#puffBar').style.width = Math.min(100, (used / S.setup.mlPerPuff) * 100) + '%';
   $('#puffText').innerHTML = `Environ <b>${n1(rest)} ml</b> restants sur ${S.setup.mlPerPuff} ml (${since} taffes depuis le ${fmtDate(S.puffStart)}). Au rythme du plan, elle devrait durer encore <b>~${n1(rest / (curB * ml))} jours</b>.`;
-  // détail du jour
-  const k = dayKey(now), today = taffesOf(k), earlyN = today.filter((e) => e.early).length;
-  $('#todayDetail').innerHTML = `${today.length} taffes · ≈ ${n1(today.length * ml)} ml · ≈ ${n0(today.length * ml * mgAt(now))} mg de nicotine` +
+  const today = sessionsOf(dayKey(now)), tt = taffes(today), earlyN = today.filter((e) => e.early).length;
+  $('#todayDetail').innerHTML = `${today.length} sessions · ${tt} taffes · ≈ ${n1(tt * ml)} ml · ≈ ${n0(tt * ml * mgAt(now))} mg de nicotine` +
     (earlyN ? ` · ${earlyN} en avance` : '') + `<br>Ton ancien rythme à cette heure-ci : ≈ ${n0(base * fracToday)} taffes.` +
-    (today.length ? `<br>Dernière taffe à ${fmtClock(today[today.length - 1].t)}.` : '');
+    (today.length ? `<br>Dernière session à ${fmtClock(today[today.length - 1].t)}.` : '');
 }
 
 /* ---------- notifications ---------- */
@@ -384,7 +440,9 @@ function start() {
   clearInterval(start.iv); start.iv = setInterval(render, 1000);
 }
 function bind() {
-  $('#puffBtn').onclick = takePuff;
+  $('#puffBtn').onclick = takeSession;
+  $('#minusBtn').onclick = () => { const s = nextAllowed(); stepN = Math.max(1, (stepN ?? (s.size || 1)) - 1); render(); };
+  $('#plusBtn').onclick = () => { const s = nextAllowed(); stepN = Math.min(40, (stepN ?? (s.size || 1)) + 1); render(); };
   $('#undoBtn').onclick = undo;
   $('#holdBtn').onclick = hold;
   $('#sosBtn').onclick = openSos;

@@ -8,7 +8,7 @@ En ligne : https://puff-stop-907558.netlify.app
 - `netlify/functions/tick.mjs` : tâche planifiée chaque minute, envoie la notif quand l'heure arrive.
 - Variables Netlify : `VAPID_PUBLIC`, `VAPID_PRIVATE`, `VAPID_SUBJECT` (la clé publique est aussi dans `public/app.js`).
 
-Plan : écart entre deux taffes = écart de départ × (240 / écart de départ)^((jour/(N-1))^1.35),
-N = 35 / 56 / 84 jours selon le rythme, puis arrêt complet. La courbe bouge très peu au début.
+Plan par sessions : session du réveil et du coucher (10 taffes au départ), et entre les deux 5 taffes toutes les 10 min.
+L'écart grandit de façon géométrique jusqu'à 4 h (10 → 11 → 12 … → 15 min à J8), les tailles baissent linéairement ; arrêt après 35 / 56 / 84 jours.
 
 Redéployer : `npm install && netlify deploy --prod --dir public --functions netlify/functions --no-build`

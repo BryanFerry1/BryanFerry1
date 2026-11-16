@@ -22,7 +22,10 @@
     <p class="muted">Arrêt progressif de la puff. On part de <b>ta</b> conso actuelle, et on espace les taffes un peu plus chaque jour. Au début ça bouge à peine.</p>
     <form id="setupForm" class="card form">
       <h3>Ta conso actuelle</h3>
-      <label>Une taffe toutes les… <span><input name="baseInterval" type="number" min="1" max="120" step="0.5" value="5"> min</span></label>
+      <p class="small muted">Le plan fonctionne en <b>sessions</b> : quelques taffes d'un coup, puis une pause qui s'allonge chaque jour. Au réveil et au coucher, tu gardes une session plus grosse.</p>
+      <label>Une session toutes les… <span><input name="baseInterval" type="number" min="1" max="120" step="1" value="10"> min</span></label>
+      <label>Taffes par session <span><input name="sessionSize" type="number" min="1" max="30" step="1" value="5"></span></label>
+      <label>Taffes au réveil et au coucher <span><input name="edgeSize" type="number" min="1" max="40" step="1" value="10"></span></label>
       <label>Une puff me dure… <span><input name="daysPerPuff" type="number" min="0.5" max="60" step="0.5" value="5.5"> jours</span></label>
       <label>Liquide dans la puff <span><input name="mlPerPuff" type="number" min="1" max="50" step="0.5" value="22"> ml</span></label>
       <label>Nicotine <span><input name="mg" type="number" min="0" max="20" step="1" value="20"> mg/ml</span></label>
@@ -59,14 +62,20 @@
         </div>
       </div>
 
-      <button class="btn primary big" id="puffBtn">J'ai pris une taffe</button>
-      <button class="btn ghost small" id="undoBtn" hidden>Annuler la dernière</button>
+      <div class="kind" id="kindLabel"></div>
+      <div class="stepper">
+        <button class="chip" id="minusBtn" aria-label="moins">−</button>
+        <div><b id="stepN">5</b> <span class="muted">taffes prises</span></div>
+        <button class="chip" id="plusBtn" aria-label="plus">+</button>
+      </div>
+      <button class="btn primary big" id="puffBtn">Session prise</button>
+      <button class="btn ghost small" id="undoBtn" hidden>Annuler la dernière session</button>
 
       <div class="grid">
         <div class="stat"><div class="v" id="sToday">0</div><div class="l">taffes aujourd'hui</div></div>
         <div class="stat"><div class="v" id="sLeft">0</div><div class="l">encore autorisées</div></div>
-        <div class="stat"><div class="v" id="sInterval">-</div><div class="l">entre 2 taffes</div></div>
-        <div class="stat"><div class="v" id="sMl">-</div><div class="l">ml restants aujourd'hui</div></div>
+        <div class="stat"><div class="v" id="sInterval">-</div><div class="l">entre 2 sessions</div></div>
+        <div class="stat"><div class="v" id="sSize">-</div><div class="l">taffes / session · réveil &amp; coucher</div></div>
       </div>
 
       <div class="card" id="installCard" hidden>
@@ -108,6 +117,15 @@
 
     <section id="tab-stats" class="screen" hidden>
       <h2>Tes progrès</h2>
+      <div class="card nico">
+        <h3>🫁 Nicotine dans ton corps</h3>
+        <div class="big" id="nicoNow">-</div>
+        <div class="small muted" id="nicoNowL">par rapport à ton ancien rythme, à cette heure-ci</div>
+        <div class="progress"><div id="nicoBar"></div></div>
+        <div class="nicoRow"><span>Évacuée depuis ta dernière session</span><b id="nicoOut">-</b></div>
+        <div class="progress"><div id="nicoOutBar"></div></div>
+        <p class="small muted" id="nicoText"></p>
+      </div>
       <div class="grid">
         <div class="stat"><div class="v" id="stReduc">-</div><div class="l">de baisse (7 derniers jours)</div></div>
         <div class="stat"><div class="v" id="stAvoided">-</div><div class="l">taffes évitées</div></div>
@@ -139,7 +157,7 @@
         <h3>🔔 Notifications</h3>
         <p class="small" id="notifStatus"></p>
         <label>Me prévenir <select id="notifMode">
-          <option value="all">à chaque taffe autorisée</option>
+          <option value="all">à chaque session autorisée</option>
           <option value="min15">seulement si l'écart ≥ 15 min (+ le matin)</option>
           <option value="morning">seulement le matin</option>
           <option value="off">jamais</option>
@@ -153,6 +171,9 @@
         <h3>Profil</h3>
         <label>Réveil <input name="wake" type="time"></label>
         <label>Coucher <input name="sleep" type="time"></label>
+        <label>Session toutes les (départ) <span><input name="baseInterval" type="number" min="1" max="120" step="1"> min</span></label>
+        <label>Taffes par session (départ) <span><input name="sessionSize" type="number" min="1" max="30" step="1"></span></label>
+        <label>Réveil &amp; coucher (départ) <span><input name="edgeSize" type="number" min="1" max="40" step="1"></span></label>
         <label>Nicotine actuelle <span><input name="mg" type="number" min="0" max="20" step="1"> mg/ml</span></label>
         <label>Prix d'une puff <span><input name="price" type="number" min="0" max="100" step="0.5"> €</span></label>
         <label>Liquide par puff <span><input name="mlPerPuff" type="number" min="1" max="50" step="0.5"> ml</span></label>
