@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Puff Stop</title>
+<meta name="theme-color" content="#0b0f0d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Puff Stop">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <!-- ONBOARDING -->
+  <section id="onboarding" class="screen" hidden>
+    <h1>Puff Stop</h1>
+    <p class="muted">Arrêt progressif de la puff. On part de <b>ta</b> conso actuelle, et on espace les taffes un peu plus chaque jour. Au début ça bouge à peine.</p>
+    <form id="setupForm" class="card form">
+      <h3>Ta conso actuelle</h3>
+      <label>Une taffe toutes les… <span><input name="baseInterval" type="number" min="1" max="120" step="0.5" value="5"> min</span></label>
+      <label>Une puff me dure… <span><input name="daysPerPuff" type="number" min="0.5" max="60" step="0.5" value="5.5"> jours</span></label>
+      <label>Liquide dans la puff <span><input name="mlPerPuff" type="number" min="1" max="50" step="0.5" value="22"> ml</span></label>
+      <label>Nicotine <span><input name="mg" type="number" min="0" max="20" step="1" value="20"> mg/ml</span></label>
+      <label>Prix d'une puff <span><input name="price" type="number" min="0" max="100" step="0.5" value="12"> €</span></label>
+      <h3>Tes horaires</h3>
+      <label>Réveil <input name="wake" type="time" value="08:00"></label>
+      <label>Coucher <input name="sleep" type="time" value="00:00"></label>
+      <h3>Rythme du sevrage</h3>
+      <div class="pace" id="paceChoice"></div>
+      <button class="btn primary big" type="submit">Lancer mon plan</button>
+    </form>
+  </section>
+
+  <!-- MAIN -->
+  <main id="main" hidden>
+    <section id="tab-today" class="screen">
+      <header class="top">
+        <div>
+          <div class="eyebrow" id="dayLabel">Jour 1</div>
+          <div class="muted small" id="paceLabel"></div>
+        </div>
+        <button class="chip" id="sosBtn">🆘 Envie</button>
+      </header>
+
+      <div class="ringWrap">
+        <svg viewBox="0 0 200 200" class="ring">
+          <circle cx="100" cy="100" r="88" class="ringBg"/>
+          <circle cx="100" cy="100" r="88" class="ringFg" id="ringFg"/>
+        </svg>
+        <div class="ringText">
+          <div class="small muted" id="ringCaption">Prochaine taffe</div>
+          <div class="countdown" id="countdown">--:--</div>
+          <div class="small muted" id="ringSub"></div>
+        </div>
+      </div>
+
+      <button class="btn primary big" id="puffBtn">J'ai pris une taffe</button>
+      <button class="btn ghost small" id="undoBtn" hidden>Annuler la dernière</button>
+
+      <div class="grid">
+        <div class="stat"><div class="v" id="sToday">0</div><div class="l">taffes aujourd'hui</div></div>
+        <div class="stat"><div class="v" id="sLeft">0</div><div class="l">encore autorisées</div></div>
+        <div class="stat"><div class="v" id="sInterval">-</div><div class="l">entre 2 taffes</div></div>
+        <div class="stat"><div class="v" id="sMl">-</div><div class="l">ml restants aujourd'hui</div></div>
+      </div>
+
+      <div class="card" id="installCard" hidden>
+        <h3>📲 Installe l'appli</h3>
+        <p class="small" id="installText"></p>
+      </div>
+      <div class="card" id="notifCard" hidden>
+        <h3>🔔 Active les notifications</h3>
+        <p class="small">Pour être prévenu dès que tu as le droit à une taffe.</p>
+        <button class="btn primary" id="notifBtn2">Activer</button>
+      </div>
+
+      <div class="card tip" id="tipCard"></div>
+      <button class="btn ghost small" id="holdBtn">C'est trop dur → rester au même palier aujourd'hui</button>
+    </section>
+
+    <section id="tab-plan" class="screen" hidden>
+      <h2>Ton plan</h2>
+      <div class="card">
+        <div class="progress"><div id="planBar"></div></div>
+        <p class="small" id="planSummary"></p>
+        <div id="planChart" class="chart"></div>
+      </div>
+      <div class="card">
+        <h3>Semaine par semaine</h3>
+        <table class="tbl" id="planTable"></table>
+      </div>
+      <div class="card">
+        <h3>Conseils pour réussir</h3>
+        <ul class="small list">
+          <li><b>Baisse le taux de nicotine</b> dès que tu peux : passer d'une puff 20 mg à 10 mg vers la moitié du plan, puis 0 mg sur la fin, ça rend l'arrêt final beaucoup plus facile. Une cigarette électronique rechargeable permet de baisser par petits paliers (18 → 12 → 6 → 3 → 0).</li>
+          <li><b>Les substituts nicotiniques</b> (patchs, gommes) sont remboursés sur prescription — médecin, pharmacien, infirmier ou sage-femme peuvent les prescrire.</li>
+          <li><b>Tabac Info Service : 39 89</b> (gratuit) — un tabacologue peut te suivre gratuitement.</li>
+          <li>Une envie dure en général <b>3 à 5 minutes</b>. Bois de l'eau, bouge, respire : elle passe.</li>
+          <li>Si tu craques, ce n'est pas grave : note-la quand même. L'appli s'adapte et repousse la suivante.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="tab-stats" class="screen" hidden>
+      <h2>Tes progrès</h2>
+      <div class="grid">
+        <div class="stat"><div class="v" id="stReduc">-</div><div class="l">de baisse (7 derniers jours)</div></div>
+        <div class="stat"><div class="v" id="stAvoided">-</div><div class="l">taffes évitées</div></div>
+        <div class="stat"><div class="v" id="stMl">-</div><div class="l">ml de liquide évités</div></div>
+        <div class="stat"><div class="v" id="stMg">-</div><div class="l">mg de nicotine évités</div></div>
+        <div class="stat"><div class="v" id="stMoney">-</div><div class="l">économisés</div></div>
+        <div class="stat"><div class="v" id="stStreak">-</div><div class="l">jours dans l'objectif</div></div>
+      </div>
+      <div class="card">
+        <h3>14 derniers jours</h3>
+        <div id="histChart" class="chart"></div>
+        <p class="small muted"><span class="dot g"></span>dans l'objectif <span class="dot r"></span>au-dessus <span class="dash"></span>objectif</p>
+      </div>
+      <div class="card">
+        <h3>Ta puff actuelle</h3>
+        <div class="progress"><div id="puffBar"></div></div>
+        <p class="small" id="puffText"></p>
+        <button class="btn" id="newPuffBtn">J'entame une nouvelle puff</button>
+      </div>
+      <div class="card">
+        <h3>Aujourd'hui en détail</h3>
+        <p class="small" id="todayDetail"></p>
+      </div>
+    </section>
+
+    <section id="tab-settings" class="screen" hidden>
+      <h2>Réglages</h2>
+      <div class="card">
+        <h3>🔔 Notifications</h3>
+        <p class="small" id="notifStatus"></p>
+        <label>Me prévenir <select id="notifMode">
+          <option value="all">à chaque taffe autorisée</option>
+          <option value="min15">seulement si l'écart ≥ 15 min (+ le matin)</option>
+          <option value="morning">seulement le matin</option>
+          <option value="off">jamais</option>
+        </select></label>
+        <div class="row">
+          <button class="btn primary" id="notifBtn">Activer</button>
+          <button class="btn" id="testBtn">Tester</button>
+        </div>
+      </div>
+      <form id="settingsForm" class="card form">
+        <h3>Profil</h3>
+        <label>Réveil <input name="wake" type="time"></label>
+        <label>Coucher <input name="sleep" type="time"></label>
+        <label>Nicotine actuelle <span><input name="mg" type="number" min="0" max="20" step="1"> mg/ml</span></label>
+        <label>Prix d'une puff <span><input name="price" type="number" min="0" max="100" step="0.5"> €</span></label>
+        <label>Liquide par puff <span><input name="mlPerPuff" type="number" min="1" max="50" step="0.5"> ml</span></label>
+        <h3>Rythme</h3>
+        <div class="pace" id="paceChoice2"></div>
+        <button class="btn primary" type="submit">Enregistrer</button>
+      </form>
+      <div class="card">
+        <h3>Données</h3>
+        <p class="small muted">Tout est stocké sur ton téléphone. Le serveur ne reçoit que les heures des notifications.</p>
+        <div class="row">
+          <button class="btn" id="exportBtn">Exporter</button>
+          <button class="btn" id="importBtn">Importer</button>
+          <button class="btn danger" id="resetBtn">Tout effacer</button>
+        </div>
+        <input type="file" id="importFile" accept="application/json" hidden>
+      </div>
+    </section>
+
+    <nav class="tabs">
+      <button data-tab="today" class="on"><span>⏱</span>Aujourd'hui</button>
+      <button data-tab="plan"><span>📉</span>Plan</button>
+      <button data-tab="stats"><span>🏆</span>Progrès</button>
+      <button data-tab="settings"><span>⚙️</span>Réglages</button>
+    </nav>
+  </main>
+
+  <!-- SOS -->
+  <div class="modal" id="sos" hidden>
+    <div class="modalBox">
+      <h2>L'envie va passer</h2>
+      <div class="breath" id="breath"><span id="breathTxt">Inspire</span></div>
+      <p class="countdown small" id="sosTimer">3:00</p>
+      <ul class="small list" id="sosTips"></ul>
+      <button class="btn primary" id="sosClose">J'ai tenu 💪</button>
+    </div>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
