@@ -55,7 +55,8 @@ function win(t) { const g = geo(); const ws = dayStart(t) + g.off * MIN, we = ws
 const nextDayRef = (t) => win(t).we + (geo().night / 2 + 1) * MIN;
 const dayIndex = (t) => Math.round((dayStart(t) - dayStart(S.setup.start)) / DAY);
 function planDay(t) { const k = dayKey(t); return dayIndex(t) - S.holds.filter((h) => h <= k).length; }
-const N = () => PACES[S.setup.pace].days;
+const N = () => (S.setup.pace === 'custom' ? S.setup.customDays : PACES[S.setup.pace].days);
+const paceName = () => (S.setup.pace === 'custom' ? 'perso' : PACES[S.setup.pace].name.toLowerCase());
 
 /* ---------- plan ---------- */
 function planAt(d) {
@@ -256,14 +257,23 @@ function fillSettings() {
   const f = $('#settingsForm');
   SETTINGS.forEach((k) => (f.elements[k].value = S.setup[k]));
   let p = S.setup.pace;
-  paceButtons($('#paceChoice2'), p, (x) => (p = x));
+  paceButtons($('#paceChoice2'), p, (x) => { p = x; f.elements.lastDay.value = ''; });
+  const curLast = ymd(planEnd() - DAY);
+  f.elements.lastDay.value = curLast;
+  f.elements.lastDay.min = ymd(Date.now() + 2 * DAY);
   f.onsubmit = (e) => {
     e.preventDefault(); const d = new FormData(f);
     const mg = +d.get('mg');
     if (mg !== S.setup.mg) (S.mgHistory = S.mgHistory || [{ t: S.setup.start, mg: S.setup.mg }]).push({ t: Date.now(), mg });
     SETTINGS.forEach((k) => (S.setup[k] = STR.includes(k) ? d.get(k) : +d.get(k)));
-    S.setup.pace = p;
-    save(); sync(); render(); toast('Enregistré ✅');
+    const ld = d.get('lastDay');
+    if (ld && ld !== curLast) {
+      const freeDay = dayStart(new Date(ld + 'T12:00').getTime() + DAY);
+      const n = Math.round((freeDay - dayStart(S.setup.start)) / DAY) - S.holds.length;
+      if (n < 3 || freeDay - Date.now() < DAY) { toast('Choisis une date au moins 2 jours plus tard'); return; }
+      S.setup.pace = 'custom'; S.setup.customDays = n;
+    } else if (p !== 'custom') S.setup.pace = p;
+    save(); fillSettings(); sync(); render(); toast('Enregistré ✅');
   };
   $('#notifMode').value = S.notif;
 }
@@ -326,7 +336,7 @@ function render() {
   const rem = free ? [] : remainingToday(now);
 
   $('#dayLabel').textContent = free ? '🎉 Libéré' : `Jour ${dayIndex(now) + 1} · palier ${Math.max(0, d) + 1}/${N()}`;
-  $('#paceLabel').textContent = free ? `Plan terminé le ${fmtDate(planEnd())}. Maintenant, tu tiens.` : `Plan ${PACES[S.setup.pace].name.toLowerCase()} · fin prévue le ${fmtDate(planEnd())}`;
+  $('#paceLabel').textContent = free ? `Plan terminé le ${fmtDate(planEnd())}. Maintenant, tu tiens.` : `Plan ${paceName()} · dernier jour le ${fmtDate(planEnd() - DAY)}`;
 
   const btn = $('#puffBtn'), fg = $('#ringFg');
   btn.classList.remove('early', 'locked');
