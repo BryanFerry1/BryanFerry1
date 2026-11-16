@@ -11,4 +11,6 @@ En ligne : https://puff-stop-907558.netlify.app
 Plan par sessions : session du réveil et du coucher (10 taffes au départ), et entre les deux 5 taffes toutes les 10 min.
 L'écart grandit de façon géométrique jusqu'à 4 h (10 → 11 → 12 … → 15 min à J8), les tailles baissent linéairement ; arrêt après 35 / 56 / 84 jours.
 
+Après le plan : mode « libre » (compteur, caps, bouton SOIRÉE, notifs de soutien 14 jours puis vendredi/samedi soir pendant 4 mois).
+
 Redéployer : `npm install && netlify deploy --prod --dir public --functions netlify/functions --no-build`

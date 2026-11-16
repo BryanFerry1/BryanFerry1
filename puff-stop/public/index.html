@@ -53,13 +53,38 @@
   <!-- MAIN -->
   <main id="main" hidden>
     <section id="tab-today" class="screen">
-      <div class="brandbar"><span class="brand">PUFF&nbsp;STOP</span><button class="chip sos" id="sosBtn">ENVIE <b>›</b></button></div>
+      <div class="brandbar"><span class="brand">PUFF&nbsp;STOP</span><div class="chips"><button class="chip" id="partyBtn">SOIRÉE <b>›</b></button><button class="chip sos" id="sosBtn">ENVIE <b>›</b></button></div></div>
       <header class="top">
         <div class="eyebrow">01 / AUJOURD'HUI</div>
         <div class="dayTitle" id="dayLabel">Jour 1</div>
         <div class="muted small" id="paceLabel"></div>
       </header>
 
+      <div id="freeView" hidden>
+        <div class="freeHero">
+          <div class="eyebrow">SANS NICOTINE DEPUIS</div>
+          <div class="countdown freeDays" id="freeDays">0</div>
+          <div class="eyebrow freeUnit" id="freeUnit">JOURS</div>
+          <div class="small muted" id="freeSince"></div>
+        </div>
+        <blockquote class="quote"><div class="eyebrow" id="fQuoteT"></div><p id="fQuoteB"></p></blockquote>
+        <div class="grid">
+          <div class="stat"><div class="v" id="fMoney">-</div><div class="l">économisés depuis l'arrêt</div></div>
+          <div class="stat"><div class="v" id="fYear">-</div><div class="l">économisés sur 1 an</div></div>
+          <div class="stat"><div class="v" id="fResist">0</div><div class="l">envies surmontées</div></div>
+          <div class="stat"><div class="v" id="fNext">-</div><div class="l" id="fNextL">prochain cap</div></div>
+        </div>
+        <div class="card">
+          <h3>Tes caps</h3>
+          <ul class="miles" id="milesList"></ul>
+        </div>
+        <div class="row center">
+          <button class="btn ghost small" id="slipBtn">J'ai pris une taffe</button>
+          <button class="btn ghost small" id="restartBtn">J'ai repris → relancer un plan</button>
+        </div>
+      </div>
+
+      <div id="planView">
       <div class="ringWrap">
         <svg viewBox="0 0 200 200" class="ring">
           <circle cx="100" cy="100" r="97" class="ringTicks"/>
@@ -88,6 +113,7 @@
         <div class="stat"><div class="v" id="sLeft">0</div><div class="l">encore autorisées</div></div>
         <div class="stat"><div class="v" id="sInterval">-</div><div class="l">entre 2 sessions</div></div>
         <div class="stat"><div class="v" id="sSize">-</div><div class="l">taffes / session · moments clés</div></div>
+      </div>
       </div>
 
       <div class="card" id="installCard" hidden>
@@ -219,7 +245,8 @@
   <!-- SOS -->
   <div class="modal" id="sos" hidden>
     <div class="modalBox">
-      <div class="eyebrow">SOS / RESPIRATION</div><h2>L'ENVIE VA PASSER.</h2>
+      <div class="eyebrow" id="sosEyebrow">SOS / RESPIRATION</div><h2 id="sosTitle">L'ENVIE VA PASSER.</h2>
+      <div id="sosAnswers" hidden></div>
       <div class="breath" id="breath"><span id="breathTxt">Inspire</span></div>
       <p class="countdown small" id="sosTimer">3:00</p>
       <ul class="small list" id="sosTips"></ul>

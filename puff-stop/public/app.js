@@ -126,6 +126,61 @@ function upcoming(now, horizon) {
 }
 const remainingToday = (now) => { const k = dayKey(now); return upcoming(now, now + 2 * DAY).filter((s) => dayKey(s.t) === k); };
 
+/* ---------- après l'arrêt ---------- */
+const H = 3600000;
+const MILESTONES = [
+  [24 * H, '24 heures', "La nicotine a presque entièrement quitté ton sang."],
+  [72 * H, '72 heures', "Le pic du manque est derrière toi. À partir de là, ça ne fait que descendre."],
+  [7 * DAY, '1 semaine', "Les envies deviennent plus courtes et plus espacées."],
+  [14 * DAY, '2 semaines', "Ton sommeil et ton énergie se stabilisent."],
+  [30 * DAY, '1 mois', "Ton cerveau s'est en grande partie réhabitué à vivre sans nicotine."],
+  [60 * DAY, '2 mois', "C'est là que t'avais craqué la dernière fois. Cette fois, tu passes."],
+  [90 * DAY, '3 mois', "Les envies sont rares. Le vrai risque, c'est les situations : reste vigilant en soirée."],
+  [180 * DAY, '6 mois', "La puff ne fait plus partie de ta vie. Tu es non-vapoteur."],
+  [365 * DAY, '1 an', "Un an libre. Ce que t'as fait là, peu de gens y arrivent."],
+];
+const FREE_QUOTES = [
+  ["C'est jamais « juste une »", "Avec du 20 mg, une seule taffe suffit à relancer toute la machine. Ton meilleur allié, c'est le « non » de la première."],
+  ["Le manque n'est plus là", "Ce qui reste, ce sont des réflexes : après manger, en soirée, quand t'es stressé. Ils s'effacent un peu plus chaque fois que tu ne cèdes pas."],
+  ["L'envie passe", "Même après des semaines, une envie peut surgir d'un coup. Elle dure quelques minutes, puis elle repart. Laisse-la passer."],
+  ["T'as déjà fait le plus dur", "Des semaines de baisse, jour après jour. Tu ne vas pas tout rendre pour une taffe en soirée."],
+  ["Ton entourage", "Tu n'as pas à te justifier. « Non merci, j'ai arrêté », ça suffit."],
+  ["Ta liberté", "Plus de puff à recharger, à acheter, à chercher. Plus de panique quand elle est vide."],
+];
+const PARTY = {
+  answers: ["« Non merci, j'ai arrêté. »", "« Je suis à {d}, je vais pas tout gâcher pour une taffe. »", "« Nan, j'suis bien sans. »"],
+  tips: ["Garde un verre (soft de préférence) en main : mains occupées, moins de réflexe.",
+    "Si un pote vapote à côté de toi, bouge : l'odeur et le geste déclenchent l'envie.",
+    "L'alcool baisse la vigilance : c'est là que « juste une taffe » arrive. Décide avant de sortir.",
+    "Dis-le à un pote de confiance avant la soirée : il t'aidera à tenir.",
+    "Une taffe de 20 mg relance tout. C'est jamais « juste une »."],
+};
+function freeSince() {
+  const last = S.log[S.log.length - 1];
+  return last ? last.t : planEnd();
+}
+const perDayCost = () => S.setup.price / S.setup.daysPerPuff;
+function fmtFree(ms) {
+  const d = Math.floor(ms / DAY);
+  return d >= 1 ? d + (d > 1 ? ' jours' : ' jour') : Math.floor(ms / H) + ' h';
+}
+function supportItems(now) {
+  const isFree = !!planAt(planDay(now)).free;
+  if (!isFree && planEnd() - now > 2 * DAY) return [];
+  const fs = isFree ? freeSince() : planEnd() - 9 * H;
+  const out = [], end = now + 90 * DAY;
+  for (const [ms, lab, txt] of MILESTONES) if (fs + ms > now && fs + ms < end) out.push({ t: fs + ms, title: `🏆 ${lab} sans nicotine`, body: txt });
+  const at = (day, h, m) => { const d = new Date(fs + day * DAY); d.setHours(h, m, 0, 0); return d.getTime(); };
+  const daily = ["Une envie ? Ouvre l'appli, bouton ENVIE. Elle passe en quelques minutes.", "Chaque jour sans, le suivant est plus facile. Tu tiens 💪",
+    "Les envies de sucre sont normales : fruits, eau, chewing-gum.", "Pense à ce que t'économises : regarde le compteur.", "T'avais tenu en arrêt brutal. Là c'est plus doux, et t'es plus fort."];
+  for (let i = 1; i <= 14; i++) { const t = at(i, 18, 30); if (t > now) out.push({ t, title: '💪 Toujours libre', body: daily[i % daily.length] }); }
+  for (let i = 1; i <= 120; i++) {
+    const t = at(i, 20, 0), wd = new Date(t).getDay();
+    if ((wd === 5 || wd === 6) && t > now && t < end) out.push({ t, title: '🎉 Soirée ce soir ?', body: "Ta réponse est prête : « Non merci, j'ai arrêté. » Une seule taffe de 20 mg relance tout." });
+  }
+  return out;
+}
+
 /* notifications : planning des ~36 prochaines heures */
 function schedule() {
   const now = Date.now();
@@ -138,7 +193,7 @@ function schedule() {
         : s.kind === 'meal' ? `${s.size} taffes. C'est un moment clé : lève-toi de table, prends-les, et passe à autre chose.`
         : s.kind === 'sleep' ? `${s.size} taffes avant de dormir. Bonne nuit 💪`
         : `${s.size} taffes max. Prends-les seulement si t'en as vraiment envie.`,
-  }));
+  })).concat(supportItems(now)).sort((a, b) => a.t - b.t);
 }
 
 /* ---------- nicotine (modèle : demi-vie 2 h) ---------- */
@@ -271,7 +326,7 @@ function render() {
   const rem = free ? [] : remainingToday(now);
 
   $('#dayLabel').textContent = free ? '🎉 Libéré' : `Jour ${dayIndex(now) + 1} · palier ${Math.max(0, d) + 1}/${N()}`;
-  $('#paceLabel').textContent = `Plan ${PACES[S.setup.pace].name.toLowerCase()} · fin prévue le ${fmtDate(planEnd())}`;
+  $('#paceLabel').textContent = free ? `Plan terminé le ${fmtDate(planEnd())}. Maintenant, tu tiens.` : `Plan ${PACES[S.setup.pace].name.toLowerCase()} · fin prévue le ${fmtDate(planEnd())}`;
 
   const btn = $('#puffBtn'), fg = $('#ringFg');
   btn.classList.remove('early', 'locked');
@@ -308,9 +363,39 @@ function render() {
   if ($('#quoteT').textContent !== q[0]) { $('#quoteT').textContent = q[0]; $('#quoteB').textContent = q[1]; }
   $('#holdBtn').hidden = free || S.holds.includes(k) || d <= 0;
 
+  $('#freeView').hidden = !free; $('#planView').hidden = free;
+  if (free) renderFree(now);
   renderPlan(d); renderStats(); renderNotifUi();
-  const key = JSON.stringify([S.log.length, S.holds.length, S.notif, k, s.t]);
+  const key = JSON.stringify([S.log.length, S.holds.length, S.notif, k, s.t, S.setup.start]);
   if (key !== lastSyncKey) { lastSyncKey = key; sync(); }
+}
+function renderFree(now) {
+  const fs = freeSince(), el = now - fs, days = Math.floor(el / DAY);
+  $('#freeDays').textContent = days >= 1 ? days : Math.floor(el / H);
+  $('#freeUnit').textContent = days >= 1 ? (days > 1 ? 'JOURS' : 'JOUR') : 'HEURES';
+  $('#freeSince').textContent = `depuis le ${fmtDate(fs)} à ${fmtClock(fs)}`;
+  $('#fMoney').textContent = Math.round(el / DAY * perDayCost()) + ' €';
+  $('#fYear').textContent = Math.round(365 * perDayCost()) + ' €';
+  $('#fResist').textContent = S.resisted || 0;
+  const next = MILESTONES.find(([ms]) => ms > el);
+  $('#fNext').textContent = next ? fmtFree(next[0] - el) : '🏆';
+  $('#fNextL').textContent = next ? `avant le cap des ${next[1]}` : 'tous les caps passés';
+  $('#milesList').innerHTML = MILESTONES.map(([ms, lab, txt]) => {
+    const cls = ms <= el ? 'done' : ms === (next && next[0]) ? 'next' : '';
+    return `<li class="${cls}"><span class="ic">${ms <= el ? '✓' : '·'}</span><b>${lab}</b><span>${txt}</span></li>`;
+  }).join('');
+  const q = FREE_QUOTES[(days + S.log.length) % FREE_QUOTES.length];
+  if ($('#fQuoteT').textContent !== q[0]) { $('#fQuoteT').textContent = q[0]; $('#fQuoteB').textContent = q[1]; }
+}
+function slip() {
+  if (!confirm("Une taffe n'efface pas tout ce que t'as fait.\nOn la note, le compteur repart, et tu continues. OK ?")) return;
+  S.log.push({ t: Date.now(), n: 1, kind: 'slip' }); save(); sync(); render();
+  toast('Notée. Une taffe, pas une rechute. Tu repars 💪');
+}
+function restartPlan() {
+  if (!confirm("Relancer un plan rapide (5 semaines) à partir d'aujourd'hui ?\nTon historique est gardé.")) return;
+  Object.assign(S.setup, { start: Date.now(), pace: 'rapide' }); S.holds = []; S.puffStart = Date.now();
+  save(); fillSettings(); sync(); render(); toast('Nouveau plan lancé. Tu sais le faire 💪');
 }
 function planEnd() { return dayStart(S.setup.start) + (N() + S.holds.length) * DAY + geo().off * MIN; }
 
@@ -473,10 +558,24 @@ function sosContext(now) {
 }
 const SOS_TIPS = ['Bois un grand verre d\'eau, lentement.', 'Lève-toi, marche 2 minutes.', 'Occupe tes mains : téléphone, balle, élastique.', 'Rappelle-toi pourquoi tu arrêtes.', 'Chewing-gum ou fruit si t\'en as.'];
 let sosIv;
-function openSos() {
+function openSos(mode) {
   $('#sos').hidden = false;
-  const ctx = sosContext(Date.now()), shuffle = (a) => [...a].sort(() => Math.random() - 0.5);
-  const tips = ctx ? [...shuffle(SOS_CTX[ctx]).slice(0, 2), ...shuffle(SOS_TIPS).slice(0, 1)] : shuffle(SOS_TIPS).slice(0, 3);
+  const now = Date.now(), shuffle = (a) => [...a].sort(() => Math.random() - 0.5);
+  const free = !!planAt(planDay(now)).free;
+  const party = mode === 'party';
+  $('#sosEyebrow').textContent = party ? 'SOS / SOIRÉE' : 'SOS / RESPIRATION';
+  $('#sosTitle').textContent = party ? 'LA SOIRÉE, TU LA GÈRES.' : "L'ENVIE VA PASSER.";
+  $('#breath').hidden = party; $('#sosTimer').hidden = party;
+  $('#sosAnswers').hidden = !party;
+  if (party) {
+    const dd = free ? fmtFree(now - freeSince()) + ' sans nicotine' : `J${dayIndex(now) + 1} de mon plan`;
+    $('#sosAnswers').innerHTML = '<div class="answers"><div class="eyebrow">TES RÉPONSES TOUTES PRÊTES</div>' +
+      PARTY.answers.map((a) => `<p>${a.replace('{d}', dd)}</p>`).join('') + '</div>';
+  }
+  const ctx = sosContext(now);
+  const tips = party ? shuffle(PARTY.tips).slice(0, 3)
+    : free ? [...shuffle(FREE_QUOTES).slice(0, 2).map((q) => q[1]), ...shuffle(SOS_TIPS).slice(0, 1)]
+    : ctx ? [...shuffle(SOS_CTX[ctx]).slice(0, 2), ...shuffle(SOS_TIPS).slice(0, 1)] : shuffle(SOS_TIPS).slice(0, 3);
   $('#sosTips').innerHTML = tips.map((x) => `<li>${x}</li>`).join('');
   let left = 180, phase = 0; const b = $('#breath'), txt = $('#breathTxt');
   const step = () => {
@@ -500,7 +599,10 @@ function bind() {
   $('#plusBtn').onclick = () => { const s = nextAllowed(); stepN = Math.min(40, (stepN ?? (s.size || 1)) + 1); render(); };
   $('#undoBtn').onclick = undo;
   $('#holdBtn').onclick = hold;
-  $('#sosBtn').onclick = openSos;
+  $('#sosBtn').onclick = () => openSos();
+  $('#partyBtn').onclick = () => openSos('party');
+  $('#slipBtn').onclick = slip;
+  $('#restartBtn').onclick = restartPlan;
   $('#sosClose').onclick = closeSos;
   $('#notifBtn').onclick = () => enableNotifs(true);
   $('#notifBtn2').onclick = () => enableNotifs(true);
