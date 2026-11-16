@@ -130,3 +130,7 @@ label span{display:flex;align-items:center;gap:6px;color:var(--mu)}
 .breath{width:150px;height:150px;margin:18px auto;border-radius:50%;border:1px dashed rgba(232,245,58,.6);box-shadow:0 0 0 14px rgba(232,245,58,.05),0 0 40px rgba(232,245,58,.15) inset;display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ac);transition:transform 4s ease-in-out}
 .breath.in{transform:scale(1.25)}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 92px);transform:translateX(-50%);background:var(--ac);color:var(--acTx);padding:11px 18px;border-radius:999px;font-weight:600;font-size:12px;letter-spacing:.06em;z-index:20;max-width:90vw;text-align:center;box-shadow:0 0 30px rgba(232,245,58,.35)}
+
+.quote{margin:18px 2px 4px;padding:2px 0 2px 16px;border-left:2px solid var(--ac)}
+.quote .eyebrow{color:var(--ac);margin-bottom:6px}
+.quote p{margin:0;font-size:19px;line-height:1.35;font-weight:300;color:#e9e9e4}

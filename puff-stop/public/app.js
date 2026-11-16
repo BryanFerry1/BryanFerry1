@@ -220,16 +220,23 @@ function hold() {
 }
 
 /* ---------- rendu ---------- */
-const TIPS = [
-  "Une envie dure 3 à 5 minutes. Si tu attends, elle redescend toute seule.",
-  "Entre deux sessions, range la puff loin de toi (sac, autre pièce).",
-  "Pendant une session, compte tes taffes. Plus de taffes « en pilote automatique ».",
-  "Bois un grand verre d'eau quand l'envie arrive. Ça occupe la bouche et les mains.",
-  "Les premiers jours l'écart bouge à peine : le but est surtout de casser l'automatisme.",
-  "Le manque culmine environ 3 jours après une grosse baisse, puis diminue nettement.",
-  "Si tu peux, passe à une puff 10 mg vers la moitié du plan : l'arrêt final sera bien plus facile.",
-  "La nicotine perd la moitié de son effet en 2 h environ. Chaque session repoussée, c'est ton corps qui se nettoie.",
-  "Tabac Info Service (39 89, gratuit) peut te mettre en contact avec un tabacologue.",
+const QUOTES = [
+  ["20 minutes sans nicotine", "Ton cœur ralentit et ta tension redescend. Ton corps commence déjà à souffler."],
+  ["72 heures", "La nicotine a quasiment quitté ton corps. Le pic du manque est passé, ensuite ça ne fait que descendre."],
+  ["2 à 4 semaines", "Le sommeil devient plus profond et plus réparateur. Tu te réveilles vraiment reposé."],
+  ["Le stress", "La nicotine ne calme pas le stress : elle calme le manque qu'elle a créé. Sans elle, ton anxiété de fond baisse."],
+  ["Ton cerveau se recâble", "En quelques semaines, tes récepteurs à nicotine se remettent au calme. Les envies deviennent rares, puis disparaissent."],
+  ["Concentration", "Fini de penser à la prochaine taffe toutes les 10 minutes. Ton attention t'appartient de nouveau."],
+  ["Liberté", "Plus besoin de vérifier que t'as ta puff avant de sortir. Plus de panique quand elle est vide."],
+  ["Ton souffle", "Moins de produits chimiques inhalés, des poumons qui respirent mieux, plus d'endurance au sport."],
+  ["Ton argent", "Chaque puff pas achetée, c'est de l'argent qui reste dans ta poche. Regarde le compteur dans Progrès."],
+  ["Ton énergie", "Plus de montagnes russes nicotine / manque toute la journée. Ton énergie devient stable."],
+  ["Chaque session repoussée", "C'est une victoire. Ton corps élimine la moitié de la nicotine toutes les 2 heures."],
+  ["Une envie, c'est une vague", "Elle monte, elle culmine, elle redescend en 3 à 5 minutes. Tu peux la regarder passer."],
+  ["Tu n'arrêtes pas un plaisir", "Tu arrêtes une dépendance qui se faisait passer pour un plaisir."],
+  ["Le plus dur, c'est maintenant", "Chaque jour qui passe rend le suivant plus facile. Le toi de dans 2 mois te remercie déjà."],
+  ["Ton cœur", "Sans nicotine, tes vaisseaux ne se resserrent plus à chaque taffe. Ton cœur travaille moins dur."],
+  ["La fierté", "Dans quelques semaines, tu pourras dire « j'ai arrêté ». Peu de gens peuvent le dire."],
 ];
 let lastSyncKey = '';
 function render() {
@@ -272,7 +279,8 @@ function render() {
   $('#sLeft').textContent = taffes(rem.map((x) => ({ n: x.size })));
   $('#sInterval').textContent = fmtI(p.I);
   $('#sSize').textContent = free ? '0' : `${p.reg} · ${p.edge}`;
-  $('#tipCard').textContent = '💡 ' + TIPS[(dayIndex(now) + Math.floor(now / 3600000)) % TIPS.length];
+  const q = QUOTES[(S.log.length + dayIndex(now) * 7) % QUOTES.length];
+  if ($('#quoteT').textContent !== q[0]) { $('#quoteT').textContent = q[0]; $('#quoteB').textContent = q[1]; }
   $('#holdBtn').hidden = free || S.holds.includes(k) || d <= 0;
 
   renderPlan(d); renderStats(); renderNotifUi();
