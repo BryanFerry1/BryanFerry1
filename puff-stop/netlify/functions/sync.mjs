@@ -4,7 +4,7 @@ import { store, push } from "../lib/push.mjs";
 const clean = (items) =>
   (Array.isArray(items) ? items : [])
     .filter((i) => i && Number.isFinite(i.t))
-    .slice(0, 500)
+    .slice(0, 2500)
     .map((i) => ({ t: i.t, title: String(i.title || "").slice(0, 80), body: String(i.body || "").slice(0, 200) }));
 
 export default async (req) => {

@@ -158,3 +158,50 @@ label span{display:flex;align-items:center;gap:6px;color:var(--mu)}
 .tbl tr.end td:last-child{text-align:left}
 .tbl .ok{color:var(--ac);font-weight:600} .tbl .ko{color:var(--red);font-weight:600}
 .tbl small{color:var(--mu);font-size:11px}
+
+.codeBox{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0 4px;padding:14px 16px;border:1px dashed rgba(232,245,58,.5);border-radius:14px}
+.codeBox span{font-family:var(--dot);font-weight:900;font-size:26px;color:var(--ac);letter-spacing:.06em}
+#restoreInput,#restoreInput0{width:150px;text-transform:uppercase;letter-spacing:.08em}
+
+.trigGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0 6px}
+.trigGrid button{background:transparent;border:1px solid var(--line);color:var(--tx);border-radius:14px;padding:14px 10px;font:400 14px var(--ui);text-align:left;min-height:56px}
+.trigGrid button.sug{border-color:var(--ac);color:var(--ac);box-shadow:0 0 18px rgba(232,245,58,.15)}
+.trigGrid button:active{transform:scale(.97)}
+.guide{font-size:19px;font-weight:300;line-height:1.35;min-height:52px;margin:10px 0 6px}
+#sosNext{margin:4px auto 0}
+.breath{transition-property:transform;transition-timing-function:ease-in-out}
+.list.checklist{list-style:none;padding:0}
+.list.checklist li{padding:12px 14px 12px 42px;border:1px solid var(--line);border-radius:12px;margin:8px 0;position:relative;cursor:pointer}
+.list.checklist li::before{content:"";position:absolute;left:14px;top:50%;width:16px;height:16px;margin-top:-8px;border:1px solid var(--mu);border-radius:50%}
+.list.checklist li.done{color:var(--mu);text-decoration:line-through;border-color:rgba(232,245,58,.4)}
+.list.checklist li.done::before{background:var(--ac);border-color:var(--ac);box-shadow:0 0 8px var(--ac)}
+
+.checkin{border-color:rgba(232,245,58,.3)}
+.ckRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line2)}
+.ckRow:last-child{border-bottom:0}
+.ckRow b{display:block;font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:500}
+.ckRow small{color:var(--mu);font-size:11px}
+.ckDots{display:flex;gap:6px}
+.ckDots button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--mu);font:600 12px var(--ui)}
+.ckDots button.on{background:var(--ac);border-color:var(--ac);color:var(--acTx);box-shadow:0 0 10px rgba(232,245,58,.4)}
+.ckDots button.on.red{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 0 10px rgba(255,59,47,.4)}
+.grid.two{margin-top:0}
+.eyebrow.sp{margin:18px 0 8px}
+.crRow{display:grid;grid-template-columns:118px 1fr 26px;align-items:center;gap:10px;font-size:13px;font-weight:300;padding:4px 0}
+.crBar{height:6px;background:rgba(255,255,255,.06);border-radius:9px;overflow:hidden}
+.crBar i{display:block;height:100%;background:var(--ac);border-radius:9px;box-shadow:0 0 8px var(--ac)}
+.crRow b{text-align:right;font-family:var(--dot);font-weight:900}
+.crHours{display:flex;align-items:flex-end;gap:2px;height:62px;border-bottom:1px solid var(--line)}
+.crHours i{flex:1;background:rgba(255,255,255,.25);border-radius:2px 2px 0 0}
+.crHours i.pk{background:var(--red);box-shadow:0 0 8px var(--red)}
+.crAxis{display:flex;justify-content:space-between;font-size:10px;color:var(--mu);margin:4px 0 8px}
+.mdRow{display:grid;grid-template-columns:62px 1fr 76px;align-items:center;gap:8px;padding:7px 0;font-size:11px}
+.mdL{letter-spacing:.12em;text-transform:uppercase;color:var(--mu)}
+.mdDots{display:grid;grid-template-columns:repeat(14,1fr);gap:2px;justify-items:center}
+.mdDots i{width:10px;height:10px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(232,245,58,calc(var(--v)*1));box-shadow:0 0 calc(var(--v)*8px) rgba(232,245,58,calc(var(--v)*.6))}
+.mdDots i.red{background:rgba(255,59,47,calc(var(--v)*1));box-shadow:0 0 calc(var(--v)*8px) rgba(255,59,47,calc(var(--v)*.6))}
+.mdDots em{font-style:normal;font-size:8px;color:var(--mu)}
+.mdT{text-align:right;color:var(--mu);font-size:11px;white-space:nowrap} .mdT b{color:var(--tx)}
+.mdRow.axis{padding-top:0}
+
+#sosRun .breath{margin:30px auto 22px}

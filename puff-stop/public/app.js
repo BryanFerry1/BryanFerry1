@@ -32,27 +32,71 @@ if (S.setup && !S.setup.v2) { // migration vers le mode sessions
   S.log = S.log.map((e) => ({ ...e, n: e.n || 1, kind: e.kind || 'reg' }));
 }
 if (S.setup && S.setup.lunch === undefined) Object.assign(S.setup, { lunch: '13:00', dinner: '20:30' });
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} scheduleBackup(); }
+/* ---------- sauvegarde auto sur le serveur ---------- */
+function newCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = crypto.getRandomValues(new Uint8Array(10)); return [...r].map((x) => A[x % A.length]).join(''); }
+let backupTimer;
+function scheduleBackup(delay = 4000) {
+  if (!S.setup) return;
+  clearTimeout(backupTimer);
+  backupTimer = setTimeout(backupNow, delay);
+}
+async function backupNow() {
+  if (!S.setup) return;
+  if (!S.backupCode) { S.backupCode = newCode(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} renderBackup(); }
+  try {
+    const r = await fetch('/api/backup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: S.backupCode, data: S }) });
+    if (r.ok) { S.backupAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} renderBackup(); }
+  } catch {}
+}
+const fmtCode = (c) => c ? c.slice(0, 5) + '-' + c.slice(5) : '…';
+function renderBackup() {
+  const el = $('#backupCode'); if (!el) return;
+  el.textContent = fmtCode(S.backupCode);
+  $('#backupAt').textContent = S.backupAt ? `Dernière sauvegarde : ${fmtDate(S.backupAt)} à ${fmtClock(S.backupAt)}` : 'Pas encore sauvegardé (il faut être connecté).';
+}
+async function restore(raw) {
+  const code = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code.length !== 10) return toast('Le code fait 10 caractères');
+  try {
+    const r = await fetch('/api/backup?code=' + code);
+    if (!r.ok) return toast(r.status === 404 ? 'Aucune sauvegarde avec ce code' : 'Erreur ' + r.status);
+    const { data } = await r.json();
+    if (!data || !data.setup || !confirm(`Restaurer la sauvegarde ? (${(data.log || []).length} sessions)\nCe qui est sur ce téléphone sera remplacé.`)) return;
+    S = { ...data, backupCode: code, subscribed: false };
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
+    toast('Restauré ✅ Réactive les notifications dans Réglages');
+    start();
+  } catch { toast('Pas de connexion'); }
+}
 save();
 
 /* ---------- temps ---------- */
 const hm = (s) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
-function geo() {
-  const wm = hm(S.setup.wake); let sm = hm(S.setup.sleep);
-  if (sm <= wm) sm += 1440;
-  const W = sm - wm, night = 1440 - W;
-  const bnd = (sm + night / 2) % 1440;           // milieu de la nuit = changement de jour
-  const off = ((wm - bnd) % 1440 + 1440) % 1440;
-  return { W, night, bnd, off };
+function geo() { // fenêtre la plus large (semaine + week-end) → milieu de la nuit = changement de jour
+  const st = S.setup;
+  const wm = Math.min(hm(st.wake), hm(st.wakeWe || st.wake));
+  const rel = (x) => (((hm(x) - wm) % 1440 + 1440) % 1440) || 1440;
+  const W = Math.max(rel(st.sleep), rel(st.sleepWe || st.sleep));
+  const night = 1440 - W;
+  return { W, night, bnd: (wm + W + night / 2) % 1440 };
 }
 function dayStart(t) {
   const { bnd } = geo(); const d = new Date(t); d.setHours(0, 0, 0, 0);
   let s = d.getTime() + bnd * MIN; if (s > t) s -= DAY; return s;
 }
 const ymd = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
-const dayKey = (t) => ymd(dayStart(t) + geo().off * MIN);
-function win(t) { const g = geo(); const ws = dayStart(t) + g.off * MIN, we = ws + g.W * MIN; return { ws, we, ss: Math.max(ws + MIN, we - BED_BEFORE * MIN) }; }
-const nextDayRef = (t) => win(t).we + (geo().night / 2 + 1) * MIN;
+const H = 3600000;
+const dayKey = (t) => ymd(dayStart(t) + 12 * H);
+const atClock = (ds, hhmm) => ds + (((hm(hhmm) - geo().bnd) % 1440 + 1440) % 1440) * MIN;
+function win(t) { // réveil (ws), coucher (we), session du coucher (ss) pour la journée de t
+  const st = S.setup, ds = dayStart(t), wd = new Date(ds + 12 * H).getDay();
+  const ws = atClock(ds, st.wakeWe && (wd === 6 || wd === 0) ? st.wakeWe : st.wake);
+  let we = atClock(ds, st.sleepWe && (wd === 5 || wd === 6) ? st.sleepWe : st.sleep);
+  if (we < ws + 2 * H) we = ws + 2 * H;
+  return { ws, we, ss: Math.max(ws + MIN, we - BED_BEFORE * MIN) };
+}
+const nextDayRef = (t) => dayStart(t) + DAY + H;
 const dayIndex = (t) => Math.round((dayStart(t) - dayStart(S.setup.start)) / DAY);
 function planDay(t) { const k = dayKey(t); return dayIndex(t) - S.holds.filter((h) => h <= k).length; }
 const N = () => (S.setup.pace === 'custom' ? S.setup.customDays : PACES[S.setup.pace].days);
@@ -74,8 +118,8 @@ function planAt(d) {
 }
 /* moments clés de la journée : réveil (ws), après les repas, coucher (ss) */
 function mealTimes(w) {
-  const wm = hm(S.setup.wake);
-  return ['lunch', 'dinner'].filter((k) => S.setup[k]).map((k) => w.ws + (((hm(S.setup[k]) - wm) % 1440 + 1440) % 1440) * MIN)
+  const ds = dayStart(w.ws);
+  return ['lunch', 'dinner'].filter((k) => S.setup[k]).map((k) => atClock(ds, S.setup[k]))
     .filter((t) => t > w.ws + 30 * MIN && t < w.ss - 30 * MIN).sort((a, b) => a - b);
 }
 function dayWin(ref) { const w = win(ref); w.meals = mealTimes(w); return w; }
@@ -93,12 +137,13 @@ function daySlots(ref, p) {
   for (let g = 0; g < 300; g++) { const s = nextIn(out[out.length - 1].t, w, p); out.push(s); if (s.kind === 'sleep') break; }
   return out.map((s) => ({ ...s, size: s.kind === 'reg' ? p.reg : p.edge }));
 }
-function dayCounts(d) { // sessions/taffes prévues sur une journée complète
+const REF_DAY = new Date(2026, 0, 7, 14).getTime(); // un mercredi : journée type pour le rythme de départ
+function dayCounts(d, ref = Date.now()) { // sessions/taffes prévues sur une journée complète
   const p = planAt(d); if (p.free) return { sessions: 0, taffes: 0, regN: 0, keyN: 0, p };
-  const sl = daySlots(Date.now(), p), regN = sl.filter((s) => s.kind === 'reg').length;
+  const sl = daySlots(ref, p), regN = sl.filter((s) => s.kind === 'reg').length;
   return { sessions: sl.length, taffes: taffes(sl.map((s) => ({ n: s.size }))), regN, keyN: sl.length - regN, p };
 }
-const baselinePerDay = () => dayCounts(0).taffes;
+const baselinePerDay = () => dayCounts(0, REF_DAY).taffes;
 const mlPerTaffe = () => S.setup.mlPerPuff / (S.setup.daysPerPuff * baselinePerDay());
 const sessionsOf = (k) => S.log.filter((e) => dayKey(e.t) === k);
 const taffes = (list) => list.reduce((s, e) => s + (e.n || 1), 0);
@@ -122,13 +167,12 @@ function nextAllowed(now = Date.now()) {
 }
 function upcoming(now, horizon) {
   const out = []; let s = nextAllowed(now), g = 0;
-  while (s && !s.free && s.t < horizon && g++ < 400) { out.push(s); s = slotAfter(s.t, s.kind); }
+  while (s && !s.free && s.t < horizon && g++ < 2000) { out.push(s); s = slotAfter(s.t, s.kind); }
   return out;
 }
 const remainingToday = (now) => { const k = dayKey(now); return upcoming(now, now + 2 * DAY).filter((s) => dayKey(s.t) === k); };
 
 /* ---------- après l'arrêt ---------- */
-const H = 3600000;
 const MILESTONES = [
   [24 * H, '24 heures', "La nicotine a presque entièrement quitté ton sang."],
   [72 * H, '72 heures', "Le pic du manque est derrière toi. À partir de là, ça ne fait que descendre."],
@@ -182,11 +226,19 @@ function supportItems(now) {
   return out;
 }
 
-/* notifications : planning des ~36 prochaines heures */
+function checkinItems(now) {
+  const out = [], M = S.mood || {};
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(now + i * DAY); d.setHours(21, 15, 0, 0); const t = d.getTime();
+    if (t > now && !(M[dayKey(t)] && M[dayKey(t)].crave)) out.push({ t, title: '📋 Ton état du jour', body: '10 secondes : sommeil, humeur, énergie, manque. Pour voir tes progrès.' });
+  }
+  return out;
+}
+/* notifications : planning des 6 prochains jours (si tu n'ouvres pas l'appli, ça continue) */
 function schedule() {
   const now = Date.now();
   if (S.notif === 'off' || !S.setup) return [];
-  return upcoming(now, now + 36 * 3600000).filter((s) => s.t > now).filter((s) =>
+  return upcoming(now, now + 6 * DAY).filter((s) => s.t > now).filter((s) =>
     S.notif === 'all' || s.kind === 'wake' || (S.notif === 'min15' && (s.kind !== 'reg' || s.I >= 15))
   ).map((s) => ({
     t: s.t, title: KIND[s.kind] + ' autorisée',
@@ -194,7 +246,7 @@ function schedule() {
         : s.kind === 'meal' ? `${s.size} taffes. C'est un moment clé : lève-toi de table, prends-les, et passe à autre chose.`
         : s.kind === 'sleep' ? `${s.size} taffes avant de dormir. Bonne nuit 💪`
         : `${s.size} taffes max. Prends-les seulement si t'en as vraiment envie.`,
-  })).concat(supportItems(now)).sort((a, b) => a.t - b.t);
+  })).concat(supportItems(now), checkinItems(now)).sort((a, b) => a.t - b.t);
 }
 
 /* ---------- nicotine (modèle : demi-vie 2 h) ---------- */
@@ -251,11 +303,11 @@ function showOnboarding() {
     save(); start();
   };
 }
-const STR = ['wake', 'sleep', 'lunch', 'dinner'];
-const SETTINGS = ['wake', 'sleep', 'lunch', 'dinner', 'baseInterval', 'sessionSize', 'edgeSize', 'mg', 'price', 'mlPerPuff'];
+const STR = ['wake', 'sleep', 'wakeWe', 'sleepWe', 'lunch', 'dinner'];
+const SETTINGS = ['wake', 'sleep', 'wakeWe', 'sleepWe', 'lunch', 'dinner', 'baseInterval', 'sessionSize', 'edgeSize', 'mg', 'price', 'mlPerPuff'];
 function fillSettings() {
   const f = $('#settingsForm');
-  SETTINGS.forEach((k) => (f.elements[k].value = S.setup[k]));
+  SETTINGS.forEach((k) => (f.elements[k].value = S.setup[k] ?? ''));
   let p = S.setup.pace;
   paceButtons($('#paceChoice2'), p, (x) => { p = x; f.elements.lastDay.value = ''; });
   const curLast = ymd(planEnd() - DAY);
@@ -375,8 +427,9 @@ function render() {
 
   $('#freeView').hidden = !free; $('#planView').hidden = free;
   if (free) renderFree(now);
+  renderCheckin(now);
   renderPlan(d); renderStats(); renderNotifUi();
-  const key = JSON.stringify([S.log.length, S.holds.length, S.notif, k, s.t, S.setup.start]);
+  const key = JSON.stringify([S.log.length, S.holds.length, S.notif, k, s.t, S.setup.start, !!((S.mood || {})[k] || {}).crave]);
   if (key !== lastSyncKey) { lastSyncKey = key; sync(); }
 }
 function renderFree(now) {
@@ -407,7 +460,7 @@ function restartPlan() {
   Object.assign(S.setup, { start: Date.now(), pace: 'rapide' }); S.holds = []; S.puffStart = Date.now();
   save(); fillSettings(); sync(); render(); toast('Nouveau plan lancé. Tu sais le faire 💪');
 }
-function planEnd() { return dayStart(S.setup.start) + (N() + S.holds.length) * DAY + geo().off * MIN; }
+function planEnd() { return win(dayStart(S.setup.start) + (N() + S.holds.length) * DAY + 2 * H).ws; }
 
 function svgLine(points, maxY, mark) {
   const w = 320, h = 140, pad = 4;
@@ -428,14 +481,14 @@ function renderPlan(d) {
   $('#planChart').innerHTML = svgLine(pts, pts[0] * 1.05, Math.max(0, d));
   const ml = mlPerTaffe(), mg = S.setup.mg;
   // calendrier jour par jour, des dates réelles jusqu'au premier jour sans nicotine
-  const nowK = dayKey(Date.now()), off = geo().off * MIN, base0 = dayStart(S.setup.start);
+  const nowK = dayKey(Date.now()), base0 = dayStart(S.setup.start);
   const fmtDay = (t) => new Date(t).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'numeric' }).replace('.', '');
   let rows = '<tr><th>Jour</th><th>Écart</th><th>Session</th><th>Moments<br>clés</th><th>Taffes</th><th>mg</th></tr>';
   for (let i = 0; i < 400; i++) {
-    const t = base0 + i * DAY + off + H, k = dayKey(t), di = planDay(t);
+    const t = base0 + i * DAY + 2 * H, k = dayKey(t), di = planDay(t);
     if (i > 0 && i % 7 === 0 && di < n) rows += `<tr class="wk"><td colspan="6">Semaine ${i / 7 + 1}</td></tr>`;
     if (di >= n) { rows += `<tr class="${k === nowK ? 'cur ' : ''}end"><td>${fmtDay(t)}</td><td colspan="5">Zéro nicotine 🎉 Tu es libre</td></tr>`; break; }
-    const x = dayCounts(di), past = k < nowK, cur = k === nowK;
+    const x = dayCounts(di, t), past = k < nowK, cur = k === nowK;
     let tf = x.taffes;
     if (past) { const done = taffes(sessionsOf(k)); tf = `<span class="${done <= x.taffes ? 'ok' : 'ko'}">${done}</span><small>/${x.taffes}</small>`; }
     rows += `<tr class="${cur ? 'cur' : past ? 'past' : ''}"><td>${cur ? '▸ ' : ''}${fmtDay(t)}</td><td>${fmtI(x.p.I)}</td><td>${x.p.reg || '—'}</td><td>${x.p.edge}</td><td>${tf}</td><td>${n0(x.taffes * ml * mg)}</td></tr>`;
@@ -462,8 +515,8 @@ function renderNicotine(now) {
 }
 function renderStats() {
   const now = Date.now(), base = baselinePerDay(), ml = mlPerTaffe(), days = dayIndex(now) + 1;
-  renderNicotine(now);
-  const { ws } = win(now), W = geo().W;
+  renderNicotine(now); renderMoodStats(now); renderCravingStats(now);
+  const { ws, we } = win(now), W = (we - ws) / MIN;
   const fracToday = Math.min(1, Math.max(0, (now - ws) / (W * MIN)));
   const expected = base * (days - 1 + fracToday);
   const avoided = Math.max(0, expected - taffes(S.log));
@@ -475,7 +528,7 @@ function renderStats() {
   const bars = [];
   for (let i = 0; i < 14; i++) {
     const t = now - i * DAY; if (dayIndex(t) < 0) break;
-    const kk = dayKey(t), c = taffes(sessionsOf(kk)), b = dayCounts(planDay(t)).taffes;
+    const kk = dayKey(t), c = taffes(sessionsOf(kk)), b = dayCounts(planDay(t), t).taffes;
     if (i > 0 && i <= 7) { sum += c; cnt++; }
     if (i > 0) { if (streakOn && c <= b) streak++; else streakOn = false; }
     bars.unshift({ k: kk, c, b, today: i === 0 });
@@ -492,11 +545,6 @@ function renderStats() {
     svg += `<text x="${X + (bw - 6) / 2}" y="${h + 12}" fill="var(--mu)" font-size="9" text-anchor="middle">${+x.k.slice(8)}</text>`;
   });
   $('#histChart').innerHTML = svg + '</svg>';
-  const since = taffes(S.log.filter((e) => e.t >= (S.puffStart || 0)));
-  const used = since * ml, rest = Math.max(0, S.setup.mlPerPuff - used);
-  const curB = dayCounts(planDay(now)).taffes || 1;
-  $('#puffBar').style.width = Math.min(100, (used / S.setup.mlPerPuff) * 100) + '%';
-  $('#puffText').innerHTML = `Environ <b>${n1(rest)} ml</b> restants sur ${S.setup.mlPerPuff} ml (${since} taffes depuis le ${fmtDate(S.puffStart)}). Au rythme du plan, elle devrait durer encore <b>~${n1(rest / (curB * ml))} jours</b>.`;
   const today = sessionsOf(dayKey(now)), tt = taffes(today), earlyN = today.filter((e) => e.early).length;
   $('#todayDetail').innerHTML = `${today.length} sessions · ${tt} taffes · ≈ ${n1(tt * ml)} ml · ≈ ${n0(tt * ml * mgAt(now))} mg de nicotine` +
     (earlyN ? ` · ${earlyN} en avance` : '') + `<br>Ton ancien rythme à cette heure-ci : ≈ ${n0(base * fracToday)} taffes.` +
@@ -574,40 +622,156 @@ function sosContext(now) {
   return null;
 }
 const SOS_TIPS = ['Bois un grand verre d\'eau, lentement.', 'Lève-toi, marche 2 minutes.', 'Occupe tes mains : téléphone, balle, élastique.', 'Rappelle-toi pourquoi tu arrêtes.', 'Chewing-gum ou fruit si t\'en as.'];
-let sosIv;
-function openSos(mode) {
-  $('#sos').hidden = false;
-  const now = Date.now(), shuffle = (a) => [...a].sort(() => Math.random() - 0.5);
-  const free = !!planAt(planDay(now)).free;
-  const party = mode === 'party';
-  $('#sosEyebrow').textContent = party ? 'SOS / SOIRÉE' : 'SOS / RESPIRATION';
-  $('#sosTitle').textContent = party ? 'LA SOIRÉE, TU LA GÈRES.' : "L'ENVIE VA PASSER.";
-  $('#breath').hidden = party; $('#sosTimer').hidden = party;
-  $('#sosAnswers').hidden = !party;
-  if (party) {
-    const dd = free ? fmtFree(now - freeSince()) + ' sans nicotine' : `J${dayIndex(now) + 1} de mon plan`;
-    $('#sosAnswers').innerHTML = '<div class="answers"><div class="eyebrow">TES RÉPONSES TOUTES PRÊTES</div>' +
-      PARTY.answers.map((a) => `<p>${a.replace('{d}', dd)}</p>`).join('') + '</div>';
-  }
-  const ctx = sosContext(now);
-  const tips = party ? shuffle(PARTY.tips).slice(0, 3)
-    : free ? [...shuffle(FREE_QUOTES).slice(0, 2).map((q) => q[1]), ...shuffle(SOS_TIPS).slice(0, 1)]
-    : ctx ? [...shuffle(SOS_CTX[ctx]).slice(0, 2), ...shuffle(SOS_TIPS).slice(0, 1)] : shuffle(SOS_TIPS).slice(0, 3);
-  $('#sosTips').innerHTML = tips.map((x) => `<li>${x}</li>`).join('');
-  let left = 180, phase = 0; const b = $('#breath'), txt = $('#breathTxt');
-  const step = () => {
-    $('#sosTimer').textContent = fmtCount(left * 1000);
-    if (left % 4 === 0) { phase ^= 1; b.classList.toggle('in', !!phase); txt.textContent = phase ? 'Inspire' : 'Expire'; }
-    if (--left < 0) { clearInterval(sosIv); $('#sosTimer').textContent = 'Bravo 👏'; }
-  };
-  clearInterval(sosIv); step(); sosIv = setInterval(step, 1000);
+/* ---------- suivi de l'état ---------- */
+const MOODS = [
+  ['sleep', 'Sommeil', 'nuit dernière'],
+  ['mood', 'Humeur', ''],
+  ['energy', 'Énergie', ''],
+  ['crave', 'Manque', '1 = aucun, 5 = très fort'],
+];
+function renderCheckin(now) {
+  const k = dayKey(now), m = (S.mood || {})[k] || {}, done = MOODS.every(([id]) => m[id]);
+  const show = (new Date(now).getHours() >= 18 || now > win(now).ss - 3 * H || now < win(now).ws) && (!done || checkinEdit);
+  $('#checkinCard').hidden = !show;
+  if (!show) return;
+  $('#checkinRows').innerHTML = MOODS.map(([id, lab, sub]) => `<div class="ckRow"><div><b>${lab}</b>${sub ? `<small>${sub}</small>` : ''}</div><div class="ckDots" data-id="${id}">` +
+    [1, 2, 3, 4, 5].map((v) => `<button data-v="${v}" class="${m[id] >= v ? 'on' : ''}${id === 'crave' ? ' red' : ''}">${v}</button>`).join('') + '</div></div>').join('');
 }
-function closeSos() { clearInterval(sosIv); $('#sos').hidden = true; S.resisted = (S.resisted || 0) + 1; save(); toast(`Envie surmontée ! (${S.resisted} au total)`); }
+let checkinEdit = false;
+function setMood(id, v) {
+  const k = dayKey(Date.now()); S.mood = S.mood || {}; S.mood[k] = { ...(S.mood[k] || {}), [id]: v };
+  const done = MOODS.every(([x]) => S.mood[k][x]);
+  if (done) { checkinEdit = false; toast('Noté ✅ Regarde l\'évolution dans Progrès'); }
+  save(); sync(); render();
+}
+function renderMoodStats(now) {
+  const days = []; for (let i = 13; i >= 0; i--) days.push(dayKey(now - i * DAY));
+  const M = S.mood || {}, filled = days.filter((k) => M[k]);
+  $('#moodCard').hidden = !filled.length;
+  if (!filled.length) return;
+  const avg = (ks, id) => { const v = ks.map((k) => M[k] && M[k][id]).filter(Boolean); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const firsts = filled.slice(0, 3), lasts = filled.slice(-3);
+  $('#moodRows').innerHTML = MOODS.map(([id, lab]) => {
+    const a = avg(firsts, id), b = avg(lasts, id);
+    const trend = filled.length >= 4 && a != null && b != null ? `${n1(a)} → <b>${n1(b)}</b>` : (b != null ? `<b>${n1(b)}</b>` : '');
+    return `<div class="mdRow"><span class="mdL">${lab}</span><span class="mdDots">` + days.map((k) => {
+      const v = M[k] && M[k][id]; return `<i class="${id === 'crave' ? 'red' : ''}" style="--v:${v ? v / 5 : 0}" title="${k}"></i>`;
+    }).join('') + `</span><span class="mdT">${trend}</span></div>`;
+  }).join('') + `<div class="mdRow axis"><span class="mdL"></span><span class="mdDots">${days.map((k) => `<em>${+k.slice(8)}</em>`).join('')}</span><span class="mdT"></span></div>`;
+}
+function renderCravingStats(now) {
+  const C = S.cravings || [];
+  $('#craveCard').hidden = !C.length;
+  if (!C.length) return;
+  const ok = C.filter((c) => c.ok).length;
+  $('#crTotal').textContent = C.length; $('#crOk').textContent = Math.round(ok / C.length * 100) + ' %';
+  const by = {}; C.forEach((c) => (by[c.trig] = (by[c.trig] || 0) + 1));
+  const top = Object.entries(by).sort((a, b) => b[1] - a[1]), mx = top[0][1];
+  $('#crTrig').innerHTML = top.map(([k, v]) => `<div class="crRow"><span>${TRIGGERS[k] ? TRIGGERS[k].label : k}</span><span class="crBar"><i style="width:${v / mx * 100}%"></i></span><b>${v}</b></div>`).join('');
+  const hrs = Array(24).fill(0); C.forEach((c) => hrs[new Date(c.t).getHours()]++);
+  const hm_ = Math.max(...hrs), peak = hrs.indexOf(hm_);
+  $('#crHours').innerHTML = `<div class="crHours">${hrs.map((v, h) => `<i style="height:${v ? 8 + v / hm_ * 52 : 2}px" class="${h === peak ? 'pk' : ''}"></i>`).join('')}</div><div class="crAxis"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span></div>`;
+  $('#crPeak').innerHTML = `Ton heure la plus difficile : <b>vers ${peak}h</b>. Prévois ton plan B pour ce moment-là.`;
+}
+
+/* ---------- ENVIE guidée selon le déclencheur ---------- */
+const TRIGGERS = {
+  repas:   { label: 'Après un repas', prog: 'repas' },
+  stress:  { label: 'Stress / nerfs', prog: 'coherence' },
+  ennui:   { label: 'Ennui', prog: 'defi' },
+  reveil:  { label: 'Réveil', prog: 'reveil' },
+  soiree:  { label: 'Soirée / potes', prog: 'party' },
+  coucher: { label: 'Avant de dormir', prog: 'detente' },
+  coupdemou: { label: 'Coup de mou / tristesse', prog: 'vague' },
+  envie:   { label: 'Juste envie', prog: 'vague' },
+};
+const PROGS = {
+  coherence: { eyebrow: 'RESPIRATION / COHÉRENCE CARDIAQUE', title: 'ON FAIT BAISSER LA PRESSION.', breath: [5, 0, 5], secs: 180,
+    steps: ["Assieds-toi, dos droit, pieds au sol.", "Suis le cercle : inspire 5 secondes par le nez…", "…expire 5 secondes par la bouche, lentement.",
+      "Ton rythme cardiaque se cale sur ta respiration.", "Relâche les épaules à chaque expiration.", "Le stress redescend. Pas besoin de nicotine pour ça.",
+      "Encore un peu. Tu le fais très bien.", "3 minutes de cohérence cardiaque : l'effet calmant dure plusieurs heures."] },
+  detente: { eyebrow: 'RELAXATION / AVANT DE DORMIR', title: 'TON CORPS SE POSE.', breath: [4, 7, 8], secs: 180,
+    steps: ["Allonge-toi ou installe-toi confortablement.", "Respiration 4-7-8 : inspire 4 s, bloque 7 s, expire 8 s.", "Relâche ton front et ta mâchoire.",
+      "Laisse tomber tes épaules, tes bras deviennent lourds.", "Détends ton ventre, ta respiration ralentit toute seule.", "Tes jambes sont lourdes, posées.",
+      "Sans nicotine le soir, ton sommeil sera plus profond.", "Reste là encore un peu. Bonne nuit."] },
+  vague: { eyebrow: 'MÉDITATION / SURFER L\'ENVIE', title: 'L\'ENVIE EST UNE VAGUE.', breath: [4, 0, 6], secs: 180,
+    steps: ["Pose-toi. Ferme les yeux si tu peux.", "Où sens-tu l'envie ? Gorge, poitrine, mains, bouche ?", "Ne la combats pas. Observe-la, comme une vague qui arrive.",
+      "Note son intensité, de 1 à 10.", "Respire dedans, lentement. Elle monte… elle est à son sommet.", "Remarque : elle change déjà. Elle bouge, elle faiblit.",
+      "Tu n'as rien eu à faire. Juste la regarder passer.", "La vague redescend. Chaque fois que tu la laisses passer, la suivante est plus petite."] },
+  defi: { eyebrow: 'ENNUI / DÉFI 3 MINUTES', title: 'OCCUPE TES MAINS.', secs: 180, challenge: true,
+    list: ["Fais 15 pompes ou 30 squats.", "Bois un grand verre d'eau bien froide.", "Envoie un message à quelqu'un que t'as pas vu depuis longtemps.",
+      "Range un truc pendant 3 minutes : bureau, sac, chambre.", "Sors prendre l'air 3 minutes.", "Mets un son et écoute-le en entier, sans rien faire d'autre.",
+      "Fais 1 minute de gainage.", "Prends une douche rapide ou passe-toi de l'eau froide sur le visage."] },
+  repas: { eyebrow: 'APRÈS LE REPAS / ROUTINE', title: 'CASSE LE RÉFLEXE.', secs: 180, check: true,
+    list: ["Lève-toi de table, change de pièce.", "Brosse-toi les dents ou prends un chewing-gum.", "Bois un verre d'eau.", "Bouge 3 minutes : vaisselle, marche, escaliers."] },
+  reveil: { eyebrow: 'RÉVEIL / ROUTINE', title: 'LE MATIN, TOI D\'ABORD.', secs: 180, check: true,
+    list: ["Bois un grand verre d'eau.", "Ouvre la fenêtre, respire 5 fois à fond.", "Douche et habille-toi avant toute session.", "Mange quelque chose."] },
+  party: { eyebrow: 'SOS / SOIRÉE', title: 'LA SOIRÉE, TU LA GÈRES.', party: true },
+};
+let sosIv, breathTo, stepIv, curTrig = null;
+const shuffle = (a) => [...a].sort(() => Math.random() - 0.5);
+function suggestTrigger(now) {
+  const ctx = sosContext(now);
+  return ctx === 'meal' ? 'repas' : ctx === 'morning' ? 'reveil' : ctx === 'night' ? 'coucher' : null;
+}
+function stopGuide() { clearInterval(sosIv); clearInterval(stepIv); clearTimeout(breathTo); }
+function openSos(mode) {
+  stopGuide();
+  $('#sos').hidden = false;
+  if (mode === 'party') return runProg('soiree');
+  const sug = suggestTrigger(Date.now());
+  $('#sosPick').hidden = false; $('#sosRun').hidden = true;
+  $('#trigGrid').innerHTML = Object.entries(TRIGGERS).map(([k, t]) => `<button class="${k === sug ? 'sug' : ''}" data-k="${k}">${t.label}</button>`).join('');
+}
+function breathLoop(pattern) {
+  const [i, h, o] = pattern, b = $('#breath'), txt = $('#breathTxt');
+  const phase = (n) => {
+    if (n === 0) { b.style.transitionDuration = i + 's'; b.classList.add('in'); txt.textContent = 'Inspire'; breathTo = setTimeout(() => phase(h ? 1 : 2), i * 1000); }
+    else if (n === 1) { txt.textContent = 'Bloque'; breathTo = setTimeout(() => phase(2), h * 1000); }
+    else { b.style.transitionDuration = o + 's'; b.classList.remove('in'); txt.textContent = 'Expire'; breathTo = setTimeout(() => phase(0), o * 1000); }
+  };
+  phase(0);
+}
+function runProg(trig) {
+  stopGuide(); curTrig = trig;
+  const pr = PROGS[TRIGGERS[trig].prog], now = Date.now();
+  $('#sosPick').hidden = true; $('#sosRun').hidden = false;
+  $('#sosEyebrow').textContent = pr.eyebrow; $('#sosTitle').textContent = pr.title;
+  $('#breath').hidden = !pr.breath; $('#sosTimer').hidden = !pr.secs; $('#sosAnswers').hidden = !pr.party;
+  $('#sosGuide').hidden = !(pr.steps || pr.challenge); $('#sosNext').hidden = !pr.challenge;
+  let list = [];
+  if (pr.party) {
+    const free = !!planAt(planDay(now)).free;
+    const dd = free ? fmtFree(now - freeSince()) + ' sans nicotine' : `J${dayIndex(now) + 1} de mon plan`;
+    $('#sosAnswers').innerHTML = '<div class="answers"><div class="eyebrow">TES RÉPONSES TOUTES PRÊTES</div>' + PARTY.answers.map((a) => `<p>${a.replace('{d}', dd)}</p>`).join('') + '</div>';
+    list = shuffle(PARTY.tips).slice(0, 3);
+  }
+  if (pr.check) $('#sosTips').innerHTML = pr.list.map((x, i) => `<li class="chk" data-i="${i}">${x}</li>`).join('');
+  else $('#sosTips').innerHTML = list.map((x) => `<li>${x}</li>`).join('');
+  $('#sosTips').classList.toggle('checklist', !!pr.check);
+  if (pr.challenge) { const pick = () => ($('#sosGuide').textContent = shuffle(pr.list)[0]); pick(); $('#sosNext').onclick = pick; }
+  if (pr.steps) {
+    let k = 0; $('#sosGuide').textContent = pr.steps[0];
+    stepIv = setInterval(() => { k = Math.min(k + 1, pr.steps.length - 1); $('#sosGuide').textContent = pr.steps[k]; }, (pr.secs / pr.steps.length) * 1000);
+  }
+  if (pr.breath) breathLoop(pr.breath);
+  if (pr.secs) {
+    let left = pr.secs;
+    const tick = () => { $('#sosTimer').textContent = left >= 0 ? fmtCount(left * 1000) : 'Bravo 👏'; if (--left < -1) clearInterval(sosIv); };
+    tick(); sosIv = setInterval(tick, 1000);
+  }
+}
+function closeSos(ok) {
+  stopGuide(); $('#sos').hidden = true;
+  if (curTrig) (S.cravings = S.cravings || []).push({ t: Date.now(), trig: curTrig, ok: !!ok });
+  if (ok) { S.resisted = (S.resisted || 0) + 1; toast(`Envie surmontée ! (${S.resisted} au total)`); }
+  curTrig = null; save(); render();
+}
 
 /* ---------- démarrage ---------- */
 function start() {
   $('#onboarding').hidden = true; $('#main').hidden = false;
-  fillSettings(); render();
+  fillSettings(); render(); renderBackup(); scheduleBackup(1500);
   clearInterval(start.iv); start.iv = setInterval(render, 1000);
 }
 function bind() {
@@ -620,14 +784,22 @@ function bind() {
   $('#partyBtn').onclick = () => openSos('party');
   $('#slipBtn').onclick = slip;
   $('#restartBtn').onclick = restartPlan;
-  $('#sosClose').onclick = closeSos;
+  $('#sosClose').onclick = () => closeSos(true);
+  $('#sosQuit').onclick = () => closeSos(false);
+  $('#sosQuit0').onclick = () => { curTrig = null; closeSos(false); };
+  $('#trigGrid').onclick = (e) => { const b = e.target.closest('button'); if (b) runProg(b.dataset.k); };
+  $('#checkinRows').onclick = (e) => { const b = e.target.closest('button'); if (b) setMood(b.parentElement.dataset.id, +b.dataset.v); };
+  $('#moodCard').onclick = (e) => { if (e.target.id === 'moodEdit') { checkinEdit = true; document.querySelector('.tabs [data-tab=today]').click(); render(); } };
+  $('#sosTips').onclick = (e) => { const li = e.target.closest('li.chk'); if (li) li.classList.toggle('done'); };
   $('#notifBtn').onclick = () => enableNotifs(true);
   $('#notifBtn2').onclick = () => enableNotifs(true);
   $('#testBtn').onclick = () => (S.subscribed ? sync(null, true).then(() => toast('Test envoyé…')) : enableNotifs(true));
   $('#notifMode').onchange = (e) => { S.notif = e.target.value; save(); sync(); render(); };
-  $('#newPuffBtn').onclick = () => { if (confirm('Nouvelle puff entamée maintenant ?')) { S.puffStart = Date.now(); save(); render(); } };
   $('#exportBtn').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' })); a.download = 'puffstop-' + ymd(Date.now()) + '.json'; a.click(); };
   $('#importBtn').onclick = () => $('#importFile').click();
+  $('#restoreBtn').onclick = () => restore($('#restoreInput').value);
+  $('#restoreBtn0').onclick = () => restore($('#restoreInput0').value);
+  $('#copyCodeBtn').onclick = () => { try { navigator.clipboard.writeText(fmtCode(S.backupCode)); toast('Code copié'); } catch { toast(fmtCode(S.backupCode)); } };
   $('#importFile').onchange = async (e) => { try { const s = JSON.parse(await e.target.files[0].text()); if (!s.setup) throw 0; S = s; save(); start(); toast('Importé ✅'); } catch { toast('Fichier invalide'); } };
   $('#resetBtn').onclick = () => { if (confirm('Tout effacer et recommencer ?')) { const id = S.id; localStorage.removeItem(KEY); S = load(); S.id = id; save(); location.reload(); } };
   $$('.tabs button').forEach((b) => (b.onclick = () => {

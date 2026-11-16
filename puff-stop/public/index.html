@@ -48,6 +48,12 @@
       <div class="pace" id="paceChoice"></div>
       <button class="btn primary big" type="submit">Lancer mon plan</button>
     </form>
+    <div class="card">
+      <h3>Déjà un plan en cours ?</h3>
+      <p class="small muted">Entre ton code de sauvegarde pour tout récupérer.</p>
+      <label>Code <input id="restoreInput0" placeholder="XXXXX-XXXXX" autocapitalize="characters" autocomplete="off"></label>
+      <button class="btn" id="restoreBtn0">Restaurer</button>
+    </div>
   </section>
 
   <!-- MAIN -->
@@ -116,6 +122,11 @@
       </div>
       </div>
 
+      <div class="card checkin" id="checkinCard" hidden>
+        <h3>Ton état aujourd'hui</h3>
+        <div id="checkinRows"></div>
+      </div>
+
       <div class="card" id="installCard" hidden>
         <h3>Installe l'appli</h3>
         <p class="small" id="installText"></p>
@@ -166,6 +177,24 @@
         <div class="progress"><div id="nicoOutBar"></div></div>
         <p class="small muted" id="nicoText"></p>
       </div>
+      <div class="card" id="craveCard" hidden>
+        <h3>Tes envies</h3>
+        <div class="grid two">
+          <div class="stat"><div class="v" id="crTotal">0</div><div class="l">envies notées</div></div>
+          <div class="stat"><div class="v" id="crOk">-</div><div class="l">surmontées</div></div>
+        </div>
+        <div class="eyebrow sp">CE QUI LES DÉCLENCHE</div>
+        <div id="crTrig"></div>
+        <div class="eyebrow sp">À QUELLE HEURE</div>
+        <div id="crHours"></div>
+        <p class="small muted" id="crPeak"></p>
+      </div>
+      <div class="card" id="moodCard" hidden>
+        <h3>Ton état · 14 jours</h3>
+        <div id="moodRows"></div>
+        <p class="small muted">Plus le point est plein, plus la note est haute. Chiffres : moyenne de tes 3 premiers jours notés → tes 3 derniers.</p>
+        <button class="btn ghost small" id="moodEdit">Modifier ma note du jour</button>
+      </div>
       <div class="grid">
         <div class="stat"><div class="v" id="stReduc">-</div><div class="l">de baisse (7 derniers jours)</div></div>
         <div class="stat"><div class="v" id="stAvoided">-</div><div class="l">taffes évitées</div></div>
@@ -178,12 +207,6 @@
         <h3>14 derniers jours</h3>
         <div id="histChart" class="chart"></div>
         <p class="small muted"><span class="dot g"></span>dans l'objectif <span class="dot r"></span>au-dessus <span class="dash"></span>objectif</p>
-      </div>
-      <div class="card">
-        <h3>Ta puff actuelle</h3>
-        <div class="progress"><div id="puffBar"></div></div>
-        <p class="small" id="puffText"></p>
-        <button class="btn" id="newPuffBtn">J'entame une nouvelle puff</button>
       </div>
       <div class="card">
         <h3>Aujourd'hui en détail</h3>
@@ -211,6 +234,9 @@
         <h3>Profil</h3>
         <label>Réveil <input name="wake" type="time"></label>
         <label>Coucher <input name="sleep" type="time"></label>
+        <label>Réveil samedi &amp; dimanche <input name="wakeWe" type="time"></label>
+        <label>Coucher vendredi &amp; samedi <input name="sleepWe" type="time"></label>
+        <p class="small muted">Laisse vide les horaires du week-end si ce sont les mêmes que la semaine.</p>
         <label>Fin du déjeuner <input name="lunch" type="time"></label>
         <label>Fin du dîner <input name="dinner" type="time"></label>
         <label>Session toutes les (départ) <span><input name="baseInterval" type="number" min="1" max="120" step="1"> min</span></label>
@@ -226,8 +252,16 @@
         <button class="btn primary" type="submit">Enregistrer</button>
       </form>
       <div class="card">
+        <h3>Sauvegarde auto</h3>
+        <p class="small muted">Tes données sont sauvegardées automatiquement. Garde ce code (capture d'écran) : il te permet de tout récupérer si tu changes de téléphone ou si tu réinstalles l'appli.</p>
+        <div class="codeBox"><span id="backupCode">…</span><button class="chip" id="copyCodeBtn">COPIER</button></div>
+        <p class="small muted" id="backupAt"></p>
+        <label>Restaurer avec un code <input id="restoreInput" placeholder="XXXXX-XXXXX" autocapitalize="characters" autocomplete="off"></label>
+        <button class="btn" id="restoreBtn">Restaurer</button>
+      </div>
+      <div class="card">
         <h3>Données</h3>
-        <p class="small muted">Tout est stocké sur ton téléphone. Le serveur ne reçoit que les heures des notifications.</p>
+        <p class="small muted">Tout est sur ton téléphone, avec une copie de sauvegarde sur le serveur (accessible seulement avec ton code).</p>
         <div class="row">
           <button class="btn" id="exportBtn">Exporter</button>
           <button class="btn" id="importBtn">Importer</button>
@@ -248,12 +282,22 @@
   <!-- SOS -->
   <div class="modal" id="sos" hidden>
     <div class="modalBox">
-      <div class="eyebrow" id="sosEyebrow">SOS / RESPIRATION</div><h2 id="sosTitle">L'ENVIE VA PASSER.</h2>
-      <div id="sosAnswers" hidden></div>
-      <div class="breath" id="breath"><span id="breathTxt">Inspire</span></div>
-      <p class="countdown small" id="sosTimer">3:00</p>
-      <ul class="small list" id="sosTips"></ul>
-      <button class="btn primary" id="sosClose">J'ai tenu</button>
+      <div id="sosPick">
+        <div class="eyebrow">SOS / ENVIE</div><h2>QU'EST-CE QUI<br>TE DONNE ENVIE ?</h2>
+        <div class="trigGrid" id="trigGrid"></div>
+        <button class="btn ghost small" id="sosQuit0">Fermer</button>
+      </div>
+      <div id="sosRun" hidden>
+        <div class="eyebrow" id="sosEyebrow"></div><h2 id="sosTitle"></h2>
+        <div id="sosAnswers" hidden></div>
+        <div class="breath" id="breath"><span id="breathTxt">Inspire</span></div>
+        <p class="guide" id="sosGuide"></p>
+        <button class="chip" id="sosNext" hidden>AUTRE DÉFI ↻</button>
+        <p class="countdown small" id="sosTimer">3:00</p>
+        <ul class="small list" id="sosTips"></ul>
+        <button class="btn primary" id="sosClose">J'ai tenu</button>
+        <button class="btn ghost small" id="sosQuit">Fermer</button>
+      </div>
     </div>
   </div>
   <div class="toast" id="toast" hidden></div>

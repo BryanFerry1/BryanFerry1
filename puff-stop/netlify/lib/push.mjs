@@ -11,3 +11,4 @@ export function push() {
   );
   return webpush;
 }
+export const backupStore = () => getStore({ name: "puffstop-backup", consistency: "strong" });
