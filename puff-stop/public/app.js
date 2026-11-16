@@ -427,12 +427,19 @@ function renderPlan(d) {
     : `Aujourd'hui : <b>${c.p.edge} taffes</b> à chaque moment clé (réveil, après les repas, coucher), et entre les deux <b>${c.p.reg} taffes toutes les ${fmtI(c.p.I)}</b> (${c.taffes} max).`) + ` Au départ : ${baselinePerDay()}/jour. Arrêt complet le <b>${fmtDate(planEnd())}</b>.`;
   $('#planChart').innerHTML = svgLine(pts, pts[0] * 1.05, Math.max(0, d));
   const ml = mlPerTaffe(), mg = S.setup.mg;
-  let rows = '<tr><th>Sem.</th><th>Écart</th><th>Session</th><th>Moments<br>clés</th><th>Taffes/j</th><th>mg/j</th></tr>';
-  for (let w = 0; w * 7 < n; w++) {
-    const di = w * 7, cur = d >= di && d < di + 7, x = dayCounts(di);
-    rows += `<tr class="${cur ? 'cur' : ''}"><td>S${w + 1}</td><td>${fmtI(x.p.I)}</td><td>${x.p.reg || '—'}</td><td>${x.p.edge}</td><td>${x.taffes}</td><td>${n0(x.taffes * ml * mg)}</td></tr>`;
+  // calendrier jour par jour, des dates réelles jusqu'au premier jour sans nicotine
+  const nowK = dayKey(Date.now()), off = geo().off * MIN, base0 = dayStart(S.setup.start);
+  const fmtDay = (t) => new Date(t).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'numeric' }).replace('.', '');
+  let rows = '<tr><th>Jour</th><th>Écart</th><th>Session</th><th>Moments<br>clés</th><th>Taffes</th><th>mg</th></tr>';
+  for (let i = 0; i < 400; i++) {
+    const t = base0 + i * DAY + off + H, k = dayKey(t), di = planDay(t);
+    if (i > 0 && i % 7 === 0 && di < n) rows += `<tr class="wk"><td colspan="6">Semaine ${i / 7 + 1}</td></tr>`;
+    if (di >= n) { rows += `<tr class="${k === nowK ? 'cur ' : ''}end"><td>${fmtDay(t)}</td><td colspan="5">Zéro nicotine 🎉 Tu es libre</td></tr>`; break; }
+    const x = dayCounts(di), past = k < nowK, cur = k === nowK;
+    let tf = x.taffes;
+    if (past) { const done = taffes(sessionsOf(k)); tf = `<span class="${done <= x.taffes ? 'ok' : 'ko'}">${done}</span><small>/${x.taffes}</small>`; }
+    rows += `<tr class="${cur ? 'cur' : past ? 'past' : ''}"><td>${cur ? '▸ ' : ''}${fmtDay(t)}</td><td>${fmtI(x.p.I)}</td><td>${x.p.reg || '—'}</td><td>${x.p.edge}</td><td>${tf}</td><td>${n0(x.taffes * ml * mg)}</td></tr>`;
   }
-  rows += `<tr class="${d >= n ? 'cur' : ''}"><td>Ensuite</td><td>—</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>`;
   $('#planTable').innerHTML = rows;
 }
 function renderNicotine(now) {

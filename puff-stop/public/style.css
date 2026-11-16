@@ -151,3 +151,10 @@ label span{display:flex;align-items:center;gap:6px;color:var(--mu)}
 .answers{text-align:left;margin:10px 0 4px}
 .answers .eyebrow{margin-bottom:8px}
 .answers p{margin:0 0 8px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;font-size:16px;font-weight:400;background:rgba(255,255,255,.03)}
+
+.tbl tr.wk td{color:var(--mu);font-size:10px;letter-spacing:.18em;text-transform:uppercase;padding-top:16px;text-align:left}
+.tbl tr.past td{color:var(--mu)}
+.tbl tr.end td{color:var(--ac);font-weight:600}
+.tbl tr.end td:last-child{text-align:left}
+.tbl .ok{color:var(--ac);font-weight:600} .tbl .ko{color:var(--red);font-weight:600}
+.tbl small{color:var(--mu);font-size:11px}
