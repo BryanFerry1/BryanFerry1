@@ -1,7 +1,7 @@
 import webpush from "web-push";
 import { getStore } from "@netlify/blobs";
 
-export const store = () => getStore("puffstop");
+export const store = () => getStore({ name: "puffstop", consistency: "strong" });
 
 export function push() {
   webpush.setVapidDetails(
