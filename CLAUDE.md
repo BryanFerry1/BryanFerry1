@@ -16,7 +16,8 @@ stick figure with a label. Code and episodes live in `tiktok-concepts/`; see
   The only text at the start is the concept name(s), big and centred:
   `OBSESSION` or `EGO VS OBSESSION`.
 - Opposition format (two concepts) is the default.
-- A punchline only at the end / resolution.
+- A punchline only at the end / resolution. The END TEXT must be readable: fade the
+  whole scene to (almost) black and centre the lines on screen (use `kit.ending`).
 - For every episode also deliver: a TikTok description (one punchy line +
   5 hashtags, 2–3 options with a recommendation). Add it to the README table.
   No polls any more (the user stopped using them).

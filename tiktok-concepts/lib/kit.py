@@ -453,3 +453,23 @@ def caption(c, text, y, alpha=1.0, col=WHITE, size=44, band=True):
     if band:
         c.drawRoundRect(skia.Rect(CX - w / 2, y - size - 6, CX + w / 2, y + 18), 10, 10, paint((0, 0, 0), 0.85 * alpha))
     draw_spaced(c, text, CX, y, f, 2, paint(col, alpha))
+
+
+# ------------------------------------------------------------------ readable ending (rule from the user)
+def ending(oc, t, t_dark, lines, dark=0.93, gap=110):
+    """End text, always readable: the whole scene fades to (almost) black from
+    t_dark, then lines appear stacked around the vertical centre of the screen.
+    lines: list of (t0, text, colour, size)."""
+    from engine import H
+    a = smoothstep(t_dark, t_dark + 0.35, t)
+    if a <= 0:
+        return
+    oc.drawRect(skia.Rect(0, 0, W, H), paint((0, 0, 0), dark * a))
+    n = len(lines)
+    y0 = 960 - gap * (n - 1) / 2
+    for k, (t0, text, col, size) in enumerate(lines):
+        if t < t0:
+            continue
+        u = ease_out((t - t0) / 0.35)
+        f = fit_font(text, size * (1 + 0.15 * (1 - u)), "InterDisplay-Black", 2, 780)
+        draw_spaced(oc, text, CX, y0 + gap * k + size * 0.35 + (1 - u) * 20, f, 2, paint(col, u))
