@@ -48,6 +48,7 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 | 18 | Mindset tier list | Tier list S/A/B/C/D : Motivation et Comfort en D, Talent et Fear en C, Discipline en B, Ego en A (« got him up off the floor »), « ? » qui pulse en S, roulement de tambour, Obsession tombe en S en rouge. | FIGHT ME IN THE COMMENTS. | Discipline in B. Ego in A. Explain why I'm wrong. #tierlist #mindset #discipline #obsession #ego |
 | 19 | Discipline vs Obsession (ultra 100 km) | Format écran partagé de l'EP02, ça bouge dès la 1re image. En haut, Obsession sprinte, saute le ravitaillement, court de nuit, vire au rouge, boite, arrive 1er et s'effondre à genoux. En bas, Discipline boit, dort sous une tente, garde son rythme, arrive 2e frais et continue de courir. Barre de progression sur la séparation. | OBSESSION WINS THE RACE. / DISCIPLINE WINS THE NEXT ONE. | Winning once vs winning forever. Pick one. #discipline #obsession #mindset #running #debate |
 | 20 | Talent vs Obsession (la revanche) | Écran partagé, 400 M, ça bouge dès la 1re image. Obsession mène tout le long, Talent court détendu, fait coucou (HI MOM.), puis accélère sans effort dans les 100 derniers mètres. Ralenti : Talent casse le ruban (1ST), Obsession s'effondre à un pas de la ligne (399 M, DNF). Puis Obsession se relève, aura rouge, et retourne vers la ligne de départ. | SOMETIMES TALENT JUST WINS. / ...OR DOES IT? | Talent won today. Obsession is already back at the start line. #talent #obsession #mindset #debate #grind |
+| 21 | Ego vs Talent vs Obsession (what are you building?) | 3 colonnes, ça bouge dès la 1re image, YEAR 1 → 10. Ego monte une tour fine et haute, drapeau rouge, la foule le filme. Talent construit une belle tour large puis s'endort dessus. Obsession construit 5 ans sous terre (NOTHING TO SHOW.) puis monte bloc par bloc. YEAR 10, THE STORM : la tour d'Ego s'effondre, le haut de celle de Talent tombe, celle d'Obsession tient. | THEY BUILT TO BE SEEN. / HE BUILT TO LAST. / WHAT ARE YOU BUILDING? | Nobody claps for foundations. #obsession #ego #talent #mindset #discipline |
 
 ## Scénarios proposés (prochains épisodes)
 
@@ -105,6 +106,7 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 | 18 | Where would YOU put Discipline? | S / A / B / C |
 | 19 | Which one would you rather be? | Obsession 🔥 (win now) / Discipline 🧱 (win forever) |
 | 20 | Who wins the rematch? | Talent again 😎 / Obsession 🔥 |
+| 21 | Which tower are you building right now? | Ego's 🚩 / Talent's 😴 / Obsession's 🧱 |
 | 03 | Ever let your ego pick the weight? | Yes, and I paid for it 🤕 / Yes, still lucky / Never, form first
 
 Sondages de réserve, réutilisables : *Which episode should be next?* (deux concepts à venir) ·
