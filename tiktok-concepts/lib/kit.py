@@ -366,8 +366,8 @@ class Video:
         for L in (self.env, self.fig, self.txt, self.hero, self.over):
             L.clear()
 
-    def compose(self, fi, t, flash=0.0, glow=0.0, white=0.0, dim=0.0):
-        master = smoothstep(0, 0.3, t) * (1 - smoothstep(self.dur - 0.35, self.dur, t))
+    def compose(self, fi, t, flash=0.0, glow=0.0, white=0.0, dim=0.0, fade_in=0.3):
+        master = (smoothstep(0, fade_in, t) if fade_in > 0 else 1.0) * (1 - smoothstep(self.dur - 0.35, self.dur, t))
         e = bloom(self.env.rgb(), (0.9, (4, 0.6), (22, 0.3)))
         g = bloom(self.fig.rgb(), (1.0, (5, 0.9), (18, 0.8 + 0.3 * glow), (60, 0.5 + 0.3 * glow + flash)))
         h = bloom(self.hero.rgb(), (1.0, (4, 0.45), (16, 0.35 + 0.2 * glow), (50, 0.25 + 0.2 * glow + flash * 0.6)))
