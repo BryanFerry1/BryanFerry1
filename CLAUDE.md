@@ -22,6 +22,10 @@ stick figure with a label. Code and episodes live in `tiktok-concepts/`; see
   5 hashtags, 2–3 options with a recommendation). Add it to the README table.
   No polls any more (the user stopped using them).
 - The user speaks French; answer in French. Video text stays in English.
+- What works best (user feedback): original, dynamic scenes where the outcome
+  builds up step by step, with ZOOMS on each character in action (camera
+  alternating wide shots and close-ups, see `ep25_tug_of_war.py`). Lots of action,
+  little text. Debatable endings drive comments.
 
 ## TikTok safe zone (1080×1920) — mandatory from EP06 on
 The TikTok UI covers parts of the frame (seen on EP05: the DAY counter sat
