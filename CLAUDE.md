@@ -18,8 +18,8 @@ stick figure with a label. Code and episodes live in `tiktok-concepts/`; see
 - Opposition format (two concepts) is the default.
 - A punchline only at the end / resolution.
 - For every episode also deliver: a TikTok description (one punchy line +
-  5 hashtags, 2–3 options with a recommendation) and a comment poll
-  (question + 2–4 short options). Add both to the README tables.
+  5 hashtags, 2–3 options with a recommendation). Add it to the README table.
+  No polls any more (the user stopped using them).
 - The user speaks French; answer in French. Video text stays in English.
 
 ## TikTok safe zone (1080×1920) — mandatory from EP06 on

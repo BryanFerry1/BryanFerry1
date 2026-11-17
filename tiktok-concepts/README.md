@@ -14,7 +14,7 @@ ajoutée ensuite dans l'app.
 - Pas de phrase d'accroche : le hook est **visuel** (un moment de l'animation qui intrigue).
 - Au début, seul texte : le nom du/des concept(s) (« OBSESSION » ou « EGO VS OBSESSION »).
 - Punchline uniquement au dénouement.
-- Pour chaque épisode : description TikTok + sondage en commentaire.
+- Pour chaque épisode : description TikTok + hashtags.
 
 ## Rendu
 
@@ -83,31 +83,3 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
    à chaque pas.
    *"IF IT FEELS LONELY, YOU'RE PROBABLY ON THE RIGHT PATH."*
 
-## Sondages (commentaires)
-
-| # | Question | Options |
-|---|----------|---------|
-| 01 | Be honest… which one are you? | Motivation 🔥 / Discipline 🧱 / Trying to become Discipline |
-| 02 | Who are you racing? | Other people 👀 / Yesterday's me 👻 |
-| 04 | How many times have you fallen this year? | 1–2 / 3–6 / 7+ / Lost count, still standing 💪 |
-| 05 | Has anyone ever laughed at you in the gym? | Yes, and I kept going 💪 / Yes, and I quit / No, never / I was the one laughing 😬 |
-| 06 | Which one are you right now? | Ego 👀 / Discipline 🧱 / Obsession 🔥 |
-| 07 | Who wins in real life? | Ego 🥊 / Obsession 🔥 / Depends on the round |
-| 08 | Would you take her back? | Never 🚫 / Maybe… / Depends how she asks |
-| 09 | Who's in your mirror? | Ego 🪞 / Obsession 🔥 / Still cracked 😅 |
-| 10 | Born with it or built it? | Talent 🧬 / Obsession 🔨 |
-| 11 | How many hours on your phone today? | <2h / 2–5h / 5h+ 😬 |
-| 12 | What would you do with $100K? | Car & watch 🚗 / Invest it 📈 / Start a business 🔥 |
-| 13 | What's stopping your jump? | Fear of failing / What people think / Timing / Nothing, I jumped 🔥 |
-| 14 | Where did you stop digging? | Motivation 💨 / Talent 🪙 / Ego 💰 / Still digging ⛏️ |
-| 15 | How long would you hold it? | <1 min / 1–3 min / 5 min, easy 🔥 |
-| 16 | Who wins your 5AM? | Comfort 🛏️ / Ego 🙄 / Discipline 🧱 / Obsession 🔥 |
-| 17 | How long did your last “new me” last? | 1 day / 1 week / 1 month / Still going 💪 |
-| 18 | Where would YOU put Discipline? | S / A / B / C |
-| 19 | Which one would you rather be? | Obsession 🔥 (win now) / Discipline 🧱 (win forever) |
-| 20 | Who wins the rematch? | Talent again 😎 / Obsession 🔥 |
-| 21 | Which tower are you building right now? | Ego's 🚩 / Talent's 😴 / Obsession's 🧱 |
-| 03 | Ever let your ego pick the weight? | Yes, and I paid for it 🤕 / Yes, still lucky / Never, form first
-
-Sondages de réserve, réutilisables : *Which episode should be next?* (deux concepts à venir) ·
-*What's stopping you right now?* (Ego / Comfort / Fear / Excuses)
