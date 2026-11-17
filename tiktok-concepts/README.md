@@ -46,7 +46,6 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 | 16 | 5:00 AM — Inside your head | Le réveil sonne 5:00, zoom dans la tête : réunion entre Comfort, Ego, Discipline, Obsession en bulles (5 MORE MINUTES / YOU WENT YESTERDAY / WE AGREED. 5 AM / I'M ALREADY OUTSIDE), vote 2-2, Obsession dégage l'oreiller de Comfort, Ego : ...FINE. Retour dans la chambre : il se lève et sort. | EVERY MORNING IS A VOTE. / WHO WON YOURS? | Tag the friend whose Comfort always wins. #5am #discipline #mindset #relatable #gym |
 | 17 | Ego after 1 gym session | Ego arrive bandeau rouge et shaker géant, 1 rep → DONE., 47 photos, le miroir lui montre un bodybuilder, story NEW ME. (3 views), $240 de matos, DAY 2 : courbatures, canapé, NEVER AGAIN. Pendant ce temps Discipline enchaîne ses séries au fond (SET 1,302). | SEE YOU NEXT JANUARY. | Bro really called me out. #gym #gymhumor #ego #discipline #newyear |
 | 18 | Mindset tier list | Tier list S/A/B/C/D : Motivation et Comfort en D, Talent et Fear en C, Discipline en B, Ego en A (« got him up off the floor »), « ? » qui pulse en S, roulement de tambour, Obsession tombe en S en rouge. | FIGHT ME IN THE COMMENTS. | Discipline in B. Ego in A. Explain why I'm wrong. #tierlist #mindset #discipline #obsession #ego |
-| 19 | Dive! | Inspiré de la référence, tout redessiné en DA noir/blanc/rouge : ponton au coucher de soleil rouge, DIVE!, 4 plongeurs, zooms sur chacun. Motivation remonte (OUT), Talent trouve une pièce rouge (OUT), doutes sur Obsession (I CAN'T / NO AIR LEFT / NOT BUILT FOR THIS), il vire au rouge. Cartes pop : masque HOLD ON..., définition « obstinate », ONE / MORE / METER, fosse. Ego s'allonge sur un coffre. Recul : tous remontés. Coquillage géant, perle, rayons. | THEY ALL WENT BACK UP. / HE KEPT GOING DOWN. / THE PEARL IS EARNED. | Everyone wants the pearl. Nobody wants the pressure. #obsession #discipline #mindset #neverquit #deepwork |
 
 ## Scénarios proposés (prochains épisodes)
 
@@ -102,7 +101,6 @@ python ep01_motivation_vs_discipline.py            # vidéo finale -> out/*.mp4
 | 16 | Who wins your 5AM? | Comfort 🛏️ / Ego 🙄 / Discipline 🧱 / Obsession 🔥 |
 | 17 | How long did your last “new me” last? | 1 day / 1 week / 1 month / Still going 💪 |
 | 18 | Where would YOU put Discipline? | S / A / B / C |
-| 19 | Where would you have come back up? | Motivation 🌅 / Talent 🪙 / Ego 💰 / I'd find the pearl 🦪 |
 | 03 | Ever let your ego pick the weight? | Yes, and I paid for it 🤕 / Yes, still lucky / Never, form first
 
 Sondages de réserve, réutilisables : *Which episode should be next?* (deux concepts à venir) ·
