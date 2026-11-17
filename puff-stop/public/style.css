@@ -213,3 +213,7 @@ label span{display:flex;align-items:center;gap:6px;color:var(--mu)}
 .reserve b{font-family:var(--dot);font-size:20px;font-weight:900;letter-spacing:0;margin:0 2px}
 .reserve span{color:var(--mu)}
 .btn.bonus{background:transparent;border-color:var(--ac);color:var(--ac);box-shadow:0 0 22px rgba(232,245,58,.18)}
+
+.reserve{display:flex;flex-direction:column;align-items:center;gap:4px;margin:12px 0 4px;padding:12px;border:1px dashed rgba(232,245,58,.4);border-radius:16px}
+.reserve span{font-size:10px;letter-spacing:.14em}
+.chip.bonusBtn{margin-top:6px;border-color:var(--ac);color:var(--ac);padding:10px 18px}

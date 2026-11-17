@@ -380,6 +380,13 @@ function takeSession() {
   const saved = allow - n;
   toast(early ? 'Notée. Pas grave, on continue 💪' : saved > 0 ? `${n} prises · ${saved} en réserve ✨` : `Session notée ✅ (${n} taffes)`);
 }
+function useBonus() {
+  const now = Date.now(), res = reserveOf(dayKey(now));
+  if (res <= 0) return toast('Plus de taffes en réserve');
+  S.log.push({ t: now, n: 1, kind: 'bonus', allow: 0 });
+  save(); sync(); render();
+  toast(`Taffe bonus ✨ Il t'en reste ${res - 1} en réserve`);
+}
 function setDayOv(field) {
   const now = Date.now(), k = dayKey(now);
   (S.dayOv = S.dayOv || {})[k] = { ...(S.dayOv[k] || {}), [field]: now };
@@ -836,6 +843,7 @@ function bind() {
   $('#plusBtn').onclick = () => { stepN = Math.min(40, cur() + 1); render(); };
   $('#undoBtn').onclick = undo;
   $('#wakeBtn').onclick = wakeUp;
+  $('#bonusBtn').onclick = useBonus;
   $('#bedBtn').onclick = goToBed;
   $('#holdBtn').onclick = hold;
   $('#sosBtn').onclick = () => openSos();
