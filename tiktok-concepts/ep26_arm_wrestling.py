@@ -29,8 +29,8 @@ OUT = os.path.join(os.path.dirname(__file__), "out")
 NAME = "ep26_arm_wrestling"
 dt = 1 / FPS
 TABLE_Y = 1.0
-ELB = 0.32                    # elbow distance from centre
-FORE = 0.62                   # forearm length
+ELB = 0.46                    # elbow distance from centre
+FORE = 0.78                   # forearm length
 HX_T, HX_O = -1.45, 1.45        # hips
 GO = 2.0
 SLAM_T = 13.4
@@ -232,10 +232,17 @@ def render(stills=None):
         if free_t == "watch":
             wx_, wy_ = cam.pt(jt["hand2"] + [0.0, -0.08])
             f_.drawCircle(wx_, wy_, 0.07 * cam.s, paint(WHITE, 1.0, 3))
-        # joined fists
+        # the two wrestling arms, drawn on top in distinct colours (Talent white, Obsession red)
         if lost <= 0:
-            hx_, hy_ = cam.pt(joined(th))
-            hc.drawCircle(hx_, hy_, 0.13 * cam.s, paint(mix(WHITE, RED, 0.3 * smoothstep(8.6, 10, t)), 1.0))
+            lw = max(4, 0.15 * cam.s)
+            for j_, col_ in ((jt, WHITE), (jo, RED)):
+                hc.drawLine(*cam.pt(j_["shoulder"]), *cam.pt(j_["elbow1"]), paint(col_, 1.0, lw))
+                hc.drawLine(*cam.pt(j_["elbow1"]), *cam.pt(j_["hand1"]), paint(col_, 1.0, lw))
+                hc.drawCircle(*cam.pt(j_["elbow1"]), lw * 0.7, paint(col_, 1.0))
+            h = joined(th)
+            d = np.array([math.cos(th), -math.sin(th)]) * 0.07       # two fists side by side across the grip
+            hc.drawCircle(*cam.pt(h - d), 0.12 * cam.s, paint(WHITE, 1.0))
+            hc.drawCircle(*cam.pt(h + d), 0.12 * cam.s, paint(RED, 1.0))
         sweat.draw(f_, cam, WHITE, WHITE)
         aura.draw(f_, cam, RED, RED)
         # panic marks / boredom
@@ -261,6 +268,18 @@ def render(stills=None):
             draw_spaced(oc, "TIME", CX, 360, font(24, "Inter-SemiBold"), 12, paint(WHITE, 0.7 * ta))
             draw_spaced(oc, f"{secs // 60}:{secs % 60:02d}", CX, 470, font(104, "InterDisplay-Bold"), 4,
                         paint(RED if t >= SLAM_T else WHITE, ta))
+            # tug gauge: half circle, needle = who is winning (left TALENT / right OBSESSION)
+            gx, gy_, gr = CX, 1500, 95
+            oc.drawRoundRect(skia.Rect(gx - 250, gy_ - gr - 25, gx + 250, gy_ + 50), 20, 20, paint((0, 0, 0), 0.85 * ta))
+            arc = skia.Path()
+            arc.addArc(skia.Rect(gx - gr, gy_ - gr, gx + gr, gy_ + gr), 180, 180)
+            oc.drawPath(arc, paint(WHITE, 0.6 * ta, 5))
+            ang = -th / PIN * (math.pi / 2) - math.pi / 2           # th>0 (Talent winning) -> needle to the left
+            ang = -math.pi / 2 + clamp(-th / PIN, -1, 1) * (math.pi / 2)
+            oc.drawLine(gx, gy_, gx + math.cos(ang) * gr * 0.9, gy_ + math.sin(ang) * gr * 0.9, paint(RED, ta, 6))
+            oc.drawCircle(gx, gy_, 10, paint(RED, ta))
+            draw_spaced(oc, "TALENT", gx - gr - 10, gy_ + 34, font(22, "Inter-Bold"), 2, paint(WHITE, ta))
+            draw_spaced(oc, "OBSESSION", gx + gr + 10, gy_ + 34, font(22, "Inter-Bold"), 2, paint(RED, ta))
         if t < GO:
             caption(oc, "TALENT VS OBSESSION", 600, 1 - smoothstep(GO - 0.3, GO, t), WHITE, 60)
         if GO - 0.05 <= t < GO + 0.5:
