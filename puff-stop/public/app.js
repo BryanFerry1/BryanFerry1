@@ -91,10 +91,13 @@ const dayKey = (t) => ymd(dayStart(t) + 12 * H);
 const atClock = (ds, hhmm) => ds + (((hm(hhmm) - geo().bnd) % 1440 + 1440) % 1440) * MIN;
 function win(t) { // réveil (ws), coucher (we), session du coucher (ss) pour la journée de t
   const st = S.setup, ds = dayStart(t), wd = new Date(ds + 12 * H).getDay();
-  const ws = atClock(ds, st.wakeWe && (wd === 6 || wd === 0) ? st.wakeWe : st.wake);
+  const ov = (S.dayOv || {})[ymd(ds + 12 * H)] || {};
+  const ws = ov.wake || atClock(ds, st.wakeWe && (wd === 6 || wd === 0) ? st.wakeWe : st.wake);
   let we = atClock(ds, st.sleepWe && (wd === 5 || wd === 6) ? st.sleepWe : st.sleep);
   if (we < ws + 2 * H) we = ws + 2 * H;
-  return { ws, we, ss: Math.max(ws + MIN, we - BED_BEFORE * MIN) };
+  let ss = Math.max(ws + MIN, we - BED_BEFORE * MIN);
+  if (ov.bed) { ss = Math.max(ws + MIN, ov.bed); we = ss + BED_BEFORE * MIN; } // « je vais me coucher »
+  return { ws, we, ss };
 }
 const nextDayRef = (t) => dayStart(t) + DAY + H;
 const dayIndex = (t) => Math.round((dayStart(t) - dayStart(S.setup.start)) / DAY);
@@ -146,6 +149,12 @@ function dayCounts(d, ref = Date.now()) { // sessions/taffes prévues sur une jo
 const baselinePerDay = () => dayCounts(0, REF_DAY).taffes;
 const mlPerTaffe = () => S.setup.mlPerPuff / (S.setup.daysPerPuff * baselinePerDay());
 const sessionsOf = (k) => S.log.filter((e) => dayKey(e.t) === k);
+const realSessions = (k) => sessionsOf(k).filter((e) => e.kind !== 'bonus');
+function reserveOf(k) { // taffes non prises pendant les sessions du jour, moins les bonus déjà utilisés
+  let r = 0;
+  for (const e of sessionsOf(k)) r += e.kind === 'bonus' ? -(e.n || 1) : (e.allow ?? (e.n || 1)) - (e.n || 1);
+  return Math.max(0, r);
+}
 const taffes = (list) => list.reduce((s, e) => s + (e.n || 1), 0);
 
 function mk(t, kind) {
@@ -160,10 +169,21 @@ function slotAfter(prevT, prevKind) {
 }
 function nextAllowed(now = Date.now()) {
   if (planAt(planDay(now)).free) return { free: true };
-  const list = sessionsOf(dayKey(now)), { ws, we } = win(now);
+  const list = realSessions(dayKey(now)), { ws, we } = win(now);
   if (!list.length) return now < we ? mk(ws, 'wake') : mk(win(nextDayRef(now)).ws, 'wake');
   const last = list[list.length - 1];
-  return slotAfter(last.t, last.kind);
+  if (last.kind === 'sleep') return slotAfter(last.t, last.kind);
+  const ov = (S.dayOv || {})[dayKey(now)] || {};
+  if (ov.bed && now >= win(now).ss) return mk(win(now).ss, 'sleep');   // « je vais me coucher »
+  // sessions ratées : on saute jusqu'au créneau le plus récent (sauf un moment clé encore frais)
+  let sl = slotAfter(last.t, last.kind);
+  for (let g = 0; g < 500 && !sl.free && sl.kind !== 'sleep' && sl.t <= now; g++) {
+    if (sl.kind !== 'reg' && now - sl.t < 90 * MIN) break;
+    const n2 = slotAfter(sl.t, sl.kind);
+    if (n2.free || n2.t > now || dayKey(n2.t) !== dayKey(sl.t)) break;
+    sl = n2;
+  }
+  return sl;
 }
 function upcoming(now, horizon) {
   const out = []; let s = nextAllowed(now), g = 0;
@@ -238,7 +258,13 @@ function checkinItems(now) {
 function schedule() {
   const now = Date.now();
   if (S.notif === 'off' || !S.setup) return [];
-  return upcoming(now, now + 6 * DAY).filter((s) => s.t > now).filter((s) =>
+  let chain = true;
+  const ups = upcoming(now, now + 6 * DAY).filter((s) => { // après un moment clé pas encore noté, plus de petites sessions
+    const keep = s.kind !== 'reg' || chain;
+    if (s.kind !== 'reg') chain = false;
+    return keep;
+  });
+  return ups.filter((s) => s.t > now).filter((s) =>
     S.notif === 'all' || s.kind === 'wake' || (S.notif === 'min15' && (s.kind !== 'reg' || s.I >= 15))
   ).map((s) => ({
     t: s.t, title: KIND[s.kind] + ' autorisée',
@@ -332,21 +358,42 @@ function fillSettings() {
 
 /* ---------- actions ---------- */
 let stepN = null, stepFor = null;
+function defaultStep(s, now, res) { return !s.free && s.t > now && res > 0 ? 1 : (s.size || 1); }
 function takeSession() {
-  const now = Date.now(), s = nextAllowed(now), list = sessionsOf(dayKey(now));
-  const n = stepN ?? (s.size || 1);
+  const now = Date.now(), k = dayKey(now), s = nextAllowed(now), list = realSessions(k), res = reserveOf(k);
+  const n = stepN ?? defaultStep(s, now, res);
   const early = !s.free && s.t > now;
   if (s.free && !confirm("Tu es censé avoir arrêté 🎉 Tu veux quand même noter une session ?")) return;
+  if (early && res > 0) { // taffes bonus prises dans la réserve : ne décalent pas la prochaine session
+    if (n > res && !confirm(`Tu as ${res} taffes en réserve, tu en prends ${n}.\nLes ${n - res} en plus comptent comme un craquage. OK ?`)) return;
+    S.log.push({ t: now, n, kind: 'bonus', allow: 0, early: n > res });
+    stepN = null; save(); sync(); render();
+    return toast(`Taffe${n > 1 ? 's' : ''} bonus ✨ Réserve restante : ${Math.max(0, res - n)}`);
+  }
   if (early && !confirm(`Encore ${fmtCount(s.t - now)} à attendre.\nTu veux vraiment la prendre ? (Elle compte quand même, pas de panique.)`)) return;
   let kind = s.kind || 'reg';
   if (early) kind = !list.length ? 'wake' : now >= win(now).ss ? 'sleep' : (s.kind === 'meal' && s.t - now < 20 * MIN) ? 'meal' : 'reg';
-  S.log.push({ t: now, n, kind, early: !!early });
+  const allow = early ? 0 : (s.size || 0);
+  if (!early && n > allow + res && !confirm(`Autorisé : ${allow} (+${res} en réserve). Tu en as pris ${n} ?`)) return;
+  S.log.push({ t: now, n, kind, allow, early: !!early });
   stepN = null; save(); sync(); render();
-  toast(early ? 'Notée. Pas grave, on continue 💪' : `Session notée ✅ (${n} taffes)`);
+  const saved = allow - n;
+  toast(early ? 'Notée. Pas grave, on continue 💪' : saved > 0 ? `${n} prises · ${saved} en réserve ✨` : `Session notée ✅ (${n} taffes)`);
+}
+function setDayOv(field) {
+  const now = Date.now(), k = dayKey(now);
+  (S.dayOv = S.dayOv || {})[k] = { ...(S.dayOv[k] || {}), [field]: now };
+  save(); sync(); render();
+}
+function wakeUp() { setDayOv('wake'); const s = nextAllowed(); toast(`Bonjour ☀️ Session du réveil : ${s.size || 0} taffes`); }
+function goToBed() {
+  const now = Date.now(), p = planAt(planDay(now)), res = reserveOf(dayKey(now));
+  if (!confirm(`Session du coucher maintenant : ${p.edge} taffes${res ? ` (+${res} en réserve)` : ''}.\nAprès, plus de session ni de notif jusqu'à demain matin. OK ?`)) return;
+  setDayOv('bed'); toast('Bonne nuit 🌙 Ta session du coucher est dispo');
 }
 function undo() {
   const last = S.log[S.log.length - 1];
-  if (last && Date.now() - last.t < 5 * MIN) { S.log.pop(); save(); sync(); render(); toast('Annulée'); }
+  if (last && Date.now() - last.t < 5 * MIN) { S.log.pop(); stepN = null; save(); sync(); render(); toast('Annulée'); }
 }
 function hold() {
   const k = dayKey(Date.now());
@@ -384,16 +431,24 @@ let lastSyncKey = '';
 function render() {
   if (!S.setup) return;
   const now = Date.now(), k = dayKey(now), d = planDay(now), s = nextAllowed(now);
-  const today = sessionsOf(k), p = planAt(d), free = !!p.free;
+  const today = sessionsOf(k), real = realSessions(k), p = planAt(d), free = !!p.free, res = free ? 0 : reserveOf(k);
   const rem = free ? [] : remainingToday(now);
 
   $('#dayLabel').textContent = free ? '🎉 Libéré' : `Jour ${dayIndex(now) + 1} · palier ${Math.max(0, d) + 1}/${N()}`;
   $('#paceLabel').textContent = free ? `Plan terminé le ${fmtDate(planEnd())}. Maintenant, tu tiens.` : `Plan ${paceName()} · dernier jour le ${fmtDate(planEnd() - DAY)}`;
 
   const btn = $('#puffBtn'), fg = $('#ringFg');
-  btn.classList.remove('early', 'locked');
-  if (stepFor !== (s.t || 0)) { stepFor = s.t || 0; stepN = null; }
-  $('#stepN').textContent = stepN ?? (s.size || 1);
+  btn.classList.remove('early', 'locked', 'bonus');
+  const stepKey = (s.t || 0) + ':' + res + ':' + (s.t > now);
+  if (stepFor !== stepKey) { stepFor = stepKey; stepN = null; }
+  $('#stepN').textContent = stepN ?? defaultStep(s, now, res);
+  btn.textContent = !free && s.t > now && res > 0 ? 'Prendre en bonus' : 'Session prise';
+  $('#reserveLine').hidden = !res;
+  $('#reserveN').textContent = res;
+  // boutons réveil / coucher
+  const w = win(now), sleepDone = real.some((e) => e.kind === 'sleep');
+  $('#wakeBtn').hidden = free || real.length > 0 || now > w.ws + 8 * H || !!((S.dayOv || {})[k] || {}).wake;
+  $('#bedBtn').hidden = free || !real.length || sleepDone || now < w.ss - 3 * H || !!((S.dayOv || {})[k] || {}).bed;
   if (free) {
     $('#ringCaption').textContent = 'Plan terminé'; $('#countdown').textContent = '0'; $('#ringSub').textContent = 'taffe autorisée. Tu es libre.';
     $('#kindLabel').textContent = ''; fg.style.strokeDashoffset = 0; btn.classList.add('locked');
@@ -404,7 +459,7 @@ function render() {
     fg.style.strokeDashoffset = 0; fg.style.stroke = 'var(--ac)';
   } else {
     const sameDay = dayKey(s.t) === k;
-    const last = today[today.length - 1];
+    const last = real[real.length - 1];
     const span = last ? s.t - last.t : s.t - now;
     const frac = 1 - Math.min(1, (s.t - now) / Math.max(span, 1));
     $('#ringCaption').textContent = sameDay ? 'Prochaine session dans' : 'Fini pour aujourd\'hui';
@@ -412,13 +467,13 @@ function render() {
     $('#ringSub').textContent = `${s.size} taffes à ` + (sameDay ? fmtClock(s.t) : fmtDate(s.t) + ' ' + fmtClock(s.t));
     $('#kindLabel').textContent = 'Prochaine : ' + KIND[s.kind].toLowerCase().replace(/^\S+ /, '');
     fg.style.strokeDashoffset = 553 * (1 - (sameDay ? frac : 0)); fg.style.stroke = 'var(--warn)';
-    btn.classList.add(sameDay ? 'early' : 'locked');
+    btn.classList.add(res > 0 ? 'bonus' : sameDay ? 'early' : 'locked');
   }
   const lastE = S.log[S.log.length - 1];
   $('#undoBtn').hidden = !(lastE && now - lastE.t < 5 * MIN);
 
   $('#sToday').textContent = taffes(today);
-  $('#sLeft').textContent = taffes(rem.map((x) => ({ n: x.size })));
+  $('#sLeft').textContent = taffes(rem.map((x) => ({ n: x.size }))) + res;
   $('#sInterval').textContent = fmtI(p.I);
   $('#sSize').textContent = free ? '0' : `${p.reg || '—'} · ${p.edge}`;
   const q = (!free && s.t <= now + 15 * MIN && KEY_QUOTES[s.kind]) || QUOTES[(S.log.length + dayIndex(now) * 7) % QUOTES.length];
@@ -429,7 +484,7 @@ function render() {
   if (free) renderFree(now);
   renderCheckin(now);
   renderPlan(d); renderStats(); renderNotifUi();
-  const key = JSON.stringify([S.log.length, S.holds.length, S.notif, k, s.t, S.setup.start, !!((S.mood || {})[k] || {}).crave]);
+  const key = JSON.stringify([S.log.length, S.holds.length, S.notif, k, s.t, S.setup.start, JSON.stringify((S.dayOv || {})[k] || {}), !!((S.mood || {})[k] || {}).crave]);
   if (key !== lastSyncKey) { lastSyncKey = key; sync(); }
 }
 function renderFree(now) {
@@ -776,9 +831,12 @@ function start() {
 }
 function bind() {
   $('#puffBtn').onclick = takeSession;
-  $('#minusBtn').onclick = () => { const s = nextAllowed(); stepN = Math.max(1, (stepN ?? (s.size || 1)) - 1); render(); };
-  $('#plusBtn').onclick = () => { const s = nextAllowed(); stepN = Math.min(40, (stepN ?? (s.size || 1)) + 1); render(); };
+  const cur = () => { const now = Date.now(); return stepN ?? defaultStep(nextAllowed(now), now, reserveOf(dayKey(now))); };
+  $('#minusBtn').onclick = () => { stepN = Math.max(1, cur() - 1); render(); };
+  $('#plusBtn').onclick = () => { stepN = Math.min(40, cur() + 1); render(); };
   $('#undoBtn').onclick = undo;
+  $('#wakeBtn').onclick = wakeUp;
+  $('#bedBtn').onclick = goToBed;
   $('#holdBtn').onclick = hold;
   $('#sosBtn').onclick = () => openSos();
   $('#partyBtn').onclick = () => openSos('party');

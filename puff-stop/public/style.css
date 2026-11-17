@@ -205,3 +205,11 @@ label span{display:flex;align-items:center;gap:6px;color:var(--mu)}
 .mdRow.axis{padding-top:0}
 
 #sosRun .breath{margin:30px auto 22px}
+
+.dayBtns{display:flex;justify-content:center;gap:8px;margin-top:14px}
+.dayBtns:not(:has(button:not([hidden]))){display:none}
+.chip.day{border-color:var(--ac);color:var(--ac);padding:12px 18px;font-size:12px;box-shadow:0 0 18px rgba(232,245,58,.15)}
+.reserve{text-align:center;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ac);margin:8px 0 2px}
+.reserve b{font-family:var(--dot);font-size:20px;font-weight:900;letter-spacing:0;margin:0 2px}
+.reserve span{color:var(--mu)}
+.btn.bonus{background:transparent;border-color:var(--ac);color:var(--ac);box-shadow:0 0 22px rgba(232,245,58,.18)}
