@@ -26,6 +26,8 @@ stick figure with a label. Code and episodes live in `tiktok-concepts/`; see
   builds up step by step, with ZOOMS on each character in action (camera
   alternating wide shots and close-ups, see `ep25_tug_of_war.py`). Lots of action,
   little text. Debatable endings drive comments.
+- Avoid single-mechanic scenes (EP27 "the door" was rejected as too simple): every
+  episode needs several phases, a setback, a comeback and a surprise beat.
 
 ## TikTok safe zone (1080×1920) — mandatory from EP06 on
 The TikTok UI covers parts of the frame (seen on EP05: the DAY counter sat
