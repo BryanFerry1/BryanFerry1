@@ -29,7 +29,7 @@ function load() {
 let S = load();
 if (S.setup && !S.setup.v2) { // migration vers le mode sessions
   Object.assign(S.setup, { v2: true, baseInterval: 10, sessionSize: 5, edgeSize: 10 });
-  S.log = S.log.map((e) => ({ ...e, n: e.n || 1, kind: e.kind || 'reg' }));
+  S.log = S.log.map((e) => ({ ...e, n: e.n ?? 1, kind: e.kind || 'reg' }));
 }
 if (S.setup && S.setup.lunch === undefined) Object.assign(S.setup, { lunch: '13:00', dinner: '20:30' });
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} scheduleBackup(); }
@@ -152,10 +152,10 @@ const sessionsOf = (k) => S.log.filter((e) => dayKey(e.t) === k);
 const realSessions = (k) => sessionsOf(k).filter((e) => e.kind !== 'bonus');
 function reserveOf(k) { // taffes non prises pendant les sessions du jour, moins les bonus déjà utilisés
   let r = 0;
-  for (const e of sessionsOf(k)) r += e.kind === 'bonus' ? -(e.n || 1) : (e.allow ?? (e.n || 1)) - (e.n || 1);
+  for (const e of sessionsOf(k)) r += e.kind === 'bonus' ? -(e.n ?? 1) : (e.allow ?? (e.n ?? 1)) - (e.n ?? 1);
   return Math.max(0, r);
 }
-const taffes = (list) => list.reduce((s, e) => s + (e.n || 1), 0);
+const taffes = (list) => list.reduce((s, e) => s + (e.n ?? 1), 0);
 
 function mk(t, kind) {
   const p = planAt(planDay(t)); if (p.free) return { free: true };
@@ -282,7 +282,7 @@ function mgAt(t) { let mg = S.setup.mg; const h = S.mgHistory || []; if (h.lengt
 const mg0 = () => ((S.mgHistory || [])[0] || { mg: S.setup.mg }).mg;
 function nicotine(now) {
   const ml = mlPerTaffe();
-  const cur = S.log.filter((e) => e.t <= now && now - e.t < 2 * DAY).reduce((s, e) => s + (e.n || 1) * ml * mgAt(e.t) * decay(now - e.t), 0);
+  const cur = S.log.filter((e) => e.t <= now && now - e.t < 2 * DAY).reduce((s, e) => s + (e.n ?? 1) * ml * mgAt(e.t) * decay(now - e.t), 0);
   // ton ancien rythme (jour 0 du plan) aux mêmes heures, hier + aujourd'hui
   const p0 = planAt(0); let base = 0;
   for (const ref of [now - DAY, now]) {
@@ -378,7 +378,7 @@ function takeSession() {
   S.log.push({ t: now, n, kind, allow, early: !!early });
   stepN = null; save(); sync(); render();
   const saved = allow - n;
-  toast(early ? 'Notée. Pas grave, on continue 💪' : saved > 0 ? `${n} prises · ${saved} en réserve ✨` : `Session notée ✅ (${n} taffes)`);
+  toast(early ? 'Notée. Pas grave, on continue 💪' : n === 0 ? `Session passée 💪 ${saved} taffes en réserve ✨` : saved > 0 ? `${n} prises · ${saved} en réserve ✨` : `Session notée ✅ (${n} taffes)`);
 }
 function useBonus() {
   const now = Date.now(), res = reserveOf(dayKey(now));
@@ -449,7 +449,8 @@ function render() {
   const stepKey = (s.t || 0) + ':' + res + ':' + (s.t > now);
   if (stepFor !== stepKey) { stepFor = stepKey; stepN = null; }
   $('#stepN').textContent = stepN ?? defaultStep(s, now, res);
-  btn.textContent = !free && s.t > now && res > 0 ? 'Prendre en bonus' : 'Session prise';
+  const shownN = stepN ?? defaultStep(s, now, res);
+  btn.textContent = !free && s.t > now && res > 0 ? 'Prendre en bonus' : !free && s.t <= now && shownN === 0 ? `Tout mettre en réserve (+${s.size})` : 'Session prise';
   $('#reserveLine').hidden = !res;
   $('#reserveN').textContent = res;
   // boutons réveil / coucher
@@ -839,7 +840,7 @@ function start() {
 function bind() {
   $('#puffBtn').onclick = takeSession;
   const cur = () => { const now = Date.now(); return stepN ?? defaultStep(nextAllowed(now), now, reserveOf(dayKey(now))); };
-  $('#minusBtn').onclick = () => { stepN = Math.max(1, cur() - 1); render(); };
+  $('#minusBtn').onclick = () => { const now = Date.now(), s = nextAllowed(now); stepN = Math.max(!s.free && s.t <= now ? 0 : 1, cur() - 1); render(); };
   $('#plusBtn').onclick = () => { stepN = Math.min(40, cur() + 1); render(); };
   $('#undoBtn').onclick = undo;
   $('#wakeBtn').onclick = wakeUp;
