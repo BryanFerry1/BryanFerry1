@@ -175,15 +175,27 @@ function nextAllowed(now = Date.now()) {
   if (last.kind === 'sleep') return slotAfter(last.t, last.kind);
   const ov = (S.dayOv || {})[dayKey(now)] || {};
   if (ov.bed && now >= win(now).ss) return mk(win(now).ss, 'sleep');   // « je vais me coucher »
-  // sessions ratées : on saute jusqu'au créneau le plus récent (sauf un moment clé encore frais)
-  let sl = slotAfter(last.t, last.kind);
-  for (let g = 0; g < 500 && !sl.free && sl.kind !== 'sleep' && sl.t <= now; g++) {
-    if (sl.kind !== 'reg' && now - sl.t < 90 * MIN) break;
-    const n2 = slotAfter(sl.t, sl.kind);
-    if (n2.free || n2.t > now || dayKey(n2.t) !== dayKey(sl.t)) break;
-    sl = n2;
+  return slotAfter(last.t, last.kind);
+}
+/* session pas prise 5 min après son heure → ses taffes passent en réserve, le chrono repart */
+const GRACE = 5 * MIN;
+function autoBank(now = Date.now()) {
+  let added = 0;
+  for (let g = 0; g < 300; g++) {
+    if (planAt(planDay(now)).free) break;
+    const k = dayKey(now);
+    if (!realSessions(k).length) break;                       // le réveil attend que tu sois levé
+    const s = nextAllowed(now);
+    if (s.free || !s.t || s.kind === 'sleep' || s.kind === 'wake') break; // le coucher reste manuel
+    if (dayKey(s.t) !== k || s.t + GRACE > now) break;
+    S.log.push({ t: s.t, n: 0, kind: s.kind, allow: s.size, auto: true });
+    added += s.size;
   }
-  return sl;
+  if (added) {
+    S.log.sort((a, b) => a.t - b.t); save(); sync();
+    toast(`+${added} taffes mises en réserve ✨ (sessions pas prises)`);
+  }
+  return added;
 }
 function upcoming(now, horizon) {
   const out = []; let s = nextAllowed(now), g = 0;
@@ -258,11 +270,10 @@ function checkinItems(now) {
 function schedule() {
   const now = Date.now();
   if (S.notif === 'off' || !S.setup) return [];
-  let chain = true;
-  const ups = upcoming(now, now + 6 * DAY).filter((s) => { // après un moment clé pas encore noté, plus de petites sessions
-    const keep = s.kind !== 'reg' || chain;
-    if (s.kind !== 'reg') chain = false;
-    return keep;
+  let chain = realSessions(dayKey(now)).length > 0;
+  const ups = upcoming(now, now + 6 * DAY).filter((s) => { // les petites sessions d'un jour ne sont prévues qu'une fois le réveil noté
+    if (s.kind === 'wake') chain = false;
+    return s.kind !== 'reg' || chain;
   });
   return ups.filter((s) => s.t > now).filter((s) =>
     S.notif === 'all' || s.kind === 'wake' || (S.notif === 'min15' && (s.kind !== 'reg' || s.I >= 15))
@@ -399,8 +410,8 @@ function goToBed() {
   setDayOv('bed'); toast('Bonne nuit 🌙 Ta session du coucher est dispo');
 }
 function undo() {
-  const last = S.log[S.log.length - 1];
-  if (last && Date.now() - last.t < 5 * MIN) { S.log.pop(); stepN = null; save(); sync(); render(); toast('Annulée'); }
+  const i = S.log.map((e) => !e.auto).lastIndexOf(true), last = S.log[i];
+  if (last && Date.now() - last.t < 5 * MIN) { S.log.splice(i, 1); stepN = null; save(); sync(); render(); toast('Annulée'); }
 }
 function hold() {
   const k = dayKey(Date.now());
@@ -437,6 +448,7 @@ const QUOTES = [
 let lastSyncKey = '';
 function render() {
   if (!S.setup) return;
+  autoBank();
   const now = Date.now(), k = dayKey(now), d = planDay(now), s = nextAllowed(now);
   const today = sessionsOf(k), real = realSessions(k), p = planAt(d), free = !!p.free, res = free ? 0 : reserveOf(k);
   const rem = free ? [] : remainingToday(now);
@@ -462,7 +474,8 @@ function render() {
     $('#kindLabel').textContent = ''; fg.style.strokeDashoffset = 0; btn.classList.add('locked');
   } else if (s.t <= now) {
     $('#ringCaption').textContent = 'Tu as le droit'; $('#countdown').textContent = s.size;
-    $('#ringSub').textContent = `taffes · depuis ${fmtClock(s.t)}`;
+    $('#ringSub').textContent = (s.kind === 'reg' || s.kind === 'meal') && real.length
+      ? `taffes · en réserve dans ${fmtCount(s.t + GRACE - now)}` : `taffes · depuis ${fmtClock(s.t)}`;
     $('#kindLabel').textContent = KIND[s.kind].replace(/^\S+ /, '') + ' disponible';
     fg.style.strokeDashoffset = 0; fg.style.stroke = 'var(--ac)';
   } else {
@@ -477,7 +490,7 @@ function render() {
     fg.style.strokeDashoffset = 553 * (1 - (sameDay ? frac : 0)); fg.style.stroke = 'var(--warn)';
     btn.classList.add(res > 0 ? 'bonus' : sameDay ? 'early' : 'locked');
   }
-  const lastE = S.log[S.log.length - 1];
+  const lastE = S.log.filter((e) => !e.auto).pop();
   $('#undoBtn').hidden = !(lastE && now - lastE.t < 5 * MIN);
 
   $('#sToday').textContent = taffes(today);
