@@ -56,12 +56,50 @@ def bamboo_h(t):
 
 
 def watering(x, t):
-    j = stand(x, 0.25, 1.35, 0.25, 0.4, 0.3, 0.35)
+    j = stand(x, 0.2, 1.25, 0.25, 0.15, 0.3, 0.45)
     return j
+
+
+def can_geom(hand):
+    """Watering can hanging from the hand: body, spout tip."""
+    body_c = hand + np.array([0.12, -0.36])
+    tip = body_c + np.array([0.55, -0.12])
+    return body_c, tip
+
+
+def draw_can(c, cam, hand, col, t, pour=True):
+    body_c, tip = can_geom(hand)
+    bx, by = cam.pt(body_c)
+    w, h = 0.6 * cam.s, 0.48 * cam.s
+    body = skia.Path()
+    body.moveTo(bx - w / 2, by - h / 2)
+    body.lineTo(bx + w / 2, by - h / 2)
+    body.lineTo(bx + w * 0.42, by + h / 2)
+    body.lineTo(bx - w * 0.42, by + h / 2)
+    body.close()
+    c.drawPath(body, paint((0, 0, 0), 1.0))
+    c.drawPath(body, paint(col, 1.0, max(3, 0.05 * cam.s)))
+    hx, hy = cam.pt(hand)
+    handle = skia.Path()
+    handle.moveTo(bx - w * 0.35, by - h / 2)
+    handle.quadTo(hx, hy - 0.25 * cam.s, bx + w * 0.2, by - h / 2)
+    c.drawPath(handle, paint(col, 1.0, max(3, 0.05 * cam.s)))
+    sx0, sy0 = cam.pt(body_c + np.array([0.28, 0.05]))
+    tx, ty = cam.pt(tip)
+    c.drawLine(sx0, sy0, tx, ty, paint(col, 1.0, max(3, 0.06 * cam.s)))
+    c.drawLine(tx, ty - 0.1 * cam.s, tx + 0.04 * cam.s, ty + 0.12 * cam.s, paint(col, 1.0, max(4, 0.08 * cam.s)))
+    if pour:
+        for k in range(7):
+            u = ((t * 2.2 + k / 7) % 1.0)
+            px = tip[0] + 0.06 + 0.06 * u
+            py = tip[1] - (tip[1] - 0.05) * u * u
+            c.drawCircle(*cam.pt((px, py)), max(2.5, 0.035 * cam.s), paint(WHITE, 0.95))
 
 
 def target(t):
     """camera (wx, wy, scale)."""
+    if 0.9 <= t < 2.3:
+        return PAT_X + 0.7, 1.1, 210
     if t < UNDER[0]:
         return 0.0, 1.6, 125
     if t < UNDER[1]:
@@ -137,10 +175,6 @@ def render(stills=None):
             if t >= tt:
                 log.once(key, tt, kind)
         watering_p = t < SHOOT - 0.3 and not (UNDER[0] <= t < UNDER[1])
-        if watering_p and rng.random() < 0.6:
-            drops.emit(np.array([[PAT_X + 1.05, 1.25]]), vel=(0.6, -1.0), spread=0.3, life=(0.3, 0.5), size=(0.02, 0.04))
-        if t < 3.0 and rng.random() < 0.5:
-            drops.emit(np.array([[IMP_X + 1.05, 1.25]]), vel=(0.6, -1.0), spread=0.3, life=(0.3, 0.5), size=(0.02, 0.04))
         if 3.3 <= t < 3.8 and rng.random() < 0.8:
             soil.emit(np.array([[PLOT_I, 0.1]]), vel=(-0.5, 2.0), spread=0.8, life=(0.3, 0.6), size=(0.03, 0.06))
         if SHOOT <= t < SHOOT + 0.3:
@@ -244,8 +278,7 @@ def render(stills=None):
             ji = stand(IMP_X, -0.15, 0.4, 0.35, 0.3, 0.3, -0.5)   # looks up, stunned
         draw_body(hc, ji, cam, RED, 1.0, 0.1)
         if t < 2.0:
-            hx, hy = cam.pt(ji["hand1"])
-            hc.drawRect(skia.Rect(hx, hy - 0.15 * cam.s, hx + 0.3 * cam.s, hy + 0.1 * cam.s), paint(RED, 1.0, 3, cap=False))
+            draw_can(hc, cam, ji["hand1"], RED, t)
         # ---------- PATIENCE
         if t < SHOOT - 0.3:
             jp = watering(PAT_X, t)
@@ -259,9 +292,7 @@ def render(stills=None):
             jp = js
         draw_body(hc, jp, cam, WHITE, 1.0, 0.2)
         if t < SHOOT - 0.3:
-            hx, hy = cam.pt(jp["hand1"])
-            hc.drawRect(skia.Rect(hx, hy - 0.15 * cam.s, hx + 0.3 * cam.s, hy + 0.1 * cam.s), paint(WHITE, 1.0, 3, cap=False))
-            hc.drawLine(hx + 0.3 * cam.s, hy - 0.05 * cam.s, hx + 0.45 * cam.s, hy + 0.08 * cam.s, paint(WHITE, 1.0, 3))
+            draw_can(hc, cam, jp["hand1"], WHITE, t, pour=winter(t) < 0.5)
         # labels
         la = (1 - smoothstep(TILT[0], TILT[0] + 0.3, t)) + smoothstep(PULL[0], PULL[1], t) * 0.0
         for j, nme, col in ((ji, "IMPATIENCE", RED), (jp, "PATIENCE", WHITE)):
