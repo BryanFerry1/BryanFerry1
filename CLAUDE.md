@@ -47,6 +47,10 @@ like/comment/share column).
 - **Left:** keep a ~80 px margin.
 - **Bottom:** nothing important below **y ≈ 1560** (username + description).
 - Check the `--stills` contact sheet against these limits before the full render.
+- ALSO check every prop and pose at full size (crop close-ups, not only the small
+  contact sheet): the user must instantly understand what each character is doing
+  (EP30 watering can was invisible, EP32 phone misaligned). Pace: one situation at a
+  time, long enough to read (>= 2 s), zoom on each character rather than cramming.
 
 ## Workflow (keep it cheap)
 - Build new episodes from the shared engine (`lib/engine.py`: figures, poses,
