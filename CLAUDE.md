@@ -26,6 +26,9 @@ stick figure with a label. Code and episodes live in `tiktok-concepts/`; see
   builds up step by step, with ZOOMS on each character in action (camera
   alternating wide shots and close-ups, see `ep25_tug_of_war.py`). Lots of action,
   little text. Debatable endings drive comments.
+- BEST PERFORMER so far: EP19 Discipline vs Obsession ultra race (10k views, 700 likes,
+  15 comments): split screen, endurance contest, each side wins something
+  (Obsession wins the race, Discipline wins the long run). Lean into this.
 - Avoid single-mechanic scenes (EP27 "the door" was rejected as too simple): every
   episode needs several phases, a setback, a comeback and a surprise beat.
 
