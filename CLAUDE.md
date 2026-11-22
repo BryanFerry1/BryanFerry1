@@ -29,6 +29,9 @@ stick figure with a label. Code and episodes live in `tiktok-concepts/`; see
 - BEST PERFORMER so far: EP19 Discipline vs Obsession ultra race (10k views, 700 likes,
   15 comments): split screen, endurance contest, each side wins something
   (Obsession wins the race, Discipline wins the long run). Lean into this.
+- Keep it READABLE: big characters, few elements, one idea understood in 2 seconds
+  (EP30 swim was rejected: tiny swimmers, too many things at once). Themes beyond
+  ego/obsession/discipline are welcome (patience, fear, phone, introvert/extrovert...).
 - Avoid single-mechanic scenes (EP27 "the door" was rejected as too simple): every
   episode needs several phases, a setback, a comeback and a surprise beat.
 
