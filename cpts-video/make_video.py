@@ -642,8 +642,8 @@ def sc_cpts(fr, A, t, a):
 def sc_login(fr, A, t, a):
     u = t - a
     bp = o_back(prog(u, 0.0, 0.5), 1.3)
-    ls = (720 / (A["login_card"].h * 0.5)) * (0.9 + 0.1 * bp)
-    lx, ly = 650, 610
+    ls = (660 / (A["login_card"].h * 0.5)) * (0.9 + 0.1 * bp)
+    lx, ly = 620, 570
     blit(fr, A["login_card"], lx, ly, ls, alpha=cl(bp * 1.5))
     # ATTENTION banner
     t_att = VO_START[5]
@@ -652,13 +652,13 @@ def sc_login(fr, A, t, a):
     if ap > 0 and aout < 1:
         shake = math.sin((t - t_att) * 30) * 4 * (1 - prog(t, t_att, 0.9))
         s = ap * (1 - aout)
-        blit(fr, A.setdefault("att_bg", rrect(520, 120, 60, YELLOW + (255,))), 650, 195, s, rot=math.radians(shake))
-        blit(fr, A.setdefault("warn", warning_sprite(70)), 650 - 175, 193, s, rot=math.radians(shake))
-        blit(fr, text("ATTENTION", 64, NAVY, 700), 650 + 40, 190, s, rot=math.radians(shake))
+        blit(fr, A.setdefault("att_bg", rrect(520, 120, 60, YELLOW + (255,))), 620, 190, s, rot=math.radians(shake))
+        blit(fr, A.setdefault("warn", warning_sprite(70)), 620 - 175, 188, s, rot=math.radians(shake))
+        blit(fr, text("ATTENTION", 64, NAVY, 700), 620 + 40, 185, s, rot=math.radians(shake))
     b_conn = at_frac(lx, ly, ls, A["login_card"], 0.515, 0.893)
     b_insc = at_frac(lx, ly, ls, A["login_card"], 0.515, 0.614)
-    bw = int(0.86 * A["login_card"].w * 0.5 * 720 / (A["login_card"].h * 0.5))
-    bh = int(0.09 * 720) + 4
+    bw = int(0.86 * A["login_card"].w * 0.5 * 660 / (A["login_card"].h * 0.5))
+    bh = int(0.09 * 660) + 4
     for (bx, by), tn in ((b_conn, wt(5, "connecter")), (b_insc, wt(5, "créer"))):
         hp = prog(t, tn, 0.3)
         hout = prog(t, tn + 2.2, 0.4)
@@ -668,15 +668,15 @@ def sc_login(fr, A, t, a):
                  alpha=hp * (1 - hout))
     # character + speech bubble
     ce = o_cubic(prog(u, 0.1, 0.55))
-    char_at(fr, A, "char_presenting", t, 1260 + 600 * (1 - ce), 1078)
+    char_at(fr, A, "char_presenting", t, 1110 + 750 * (1 - ce), 1078)
     t_bub = wt(5, "poursuivre")
     bpp = pop(t, t_bub, 0.5, 1.6)
     if bpp > 0:
-        bs = (680 / (A["bubble"].w * 0.5))
-        blit(fr, A["bubble"], 1545, 395, bs * bpp)
-        blit(fr, text("Connectez-vous\nou créez un compte !", 42, NAVY, 600, spacing=1.08), 1535, 382, bpp)
+        bs = (540 / (A["bubble"].w * 0.5))
+        blit(fr, A["bubble"], 1630, 330, bs * bpp)
+        blit(fr, text("Connectez-vous\nou créez un compte !", 38, NAVY, 600, spacing=1.08), 1622, 319, bpp)
         wig = math.sin(t * 5) * 8
-        blit(fr, A["bulb"], 1850, 215, 0.42 * bpp, rot=math.radians(18 + wig))
+        blit(fr, A["bulb"], 1870, 185, 0.8 * bpp, rot=math.radians(18 + wig))
     return {"conn": b_conn, "insc": b_insc}
 
 
