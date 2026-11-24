@@ -78,13 +78,28 @@ def save(path, rgba):
 
 def main(static_only=False):
     os.makedirs(OUT, exist_ok=True)
-    plate = cv2.imread(os.path.join(RAW, "plate.png"))
+    plate = cv2.imread(os.path.join(RAW, "plate_nologo.png"))  # logos are drawn on top separately
     cv2.imwrite(os.path.join(OUT, "plate.png"), plate)
     sheet = cv2.cvtColor(cv2.imread(os.path.join(RAW, "sheet_images_2x.png")), cv2.COLOR_BGR2RGB)  # 2x export
     for name, box in STATIC.items():
         box2 = tuple(v * 2 for v in box)
         save(os.path.join(OUT, name + ".png"), key(crop(sheet, *box2), enclosed=name in ("burst", "bulb", "bubble")))
         print("static", name)
+    # logos (sheet on magenta: the CPTS logo contains green, so no green key here)
+    lg = cv2.cvtColor(cv2.imread(os.path.join(RAW, "sheet_logos.png")), cv2.COLOR_BGR2RGB)
+    c = lg[40:738, 40:740].astype(np.float32)
+    d = np.minimum(c[..., 0], c[..., 2]) - c[..., 1]
+    a = 1.0 - np.clip((d - 60.0) / (200.0 - 60.0), 0, 1)
+    rgb = c.copy()
+    edge = a < 0.98  # remove magenta spill on edges
+    rgb[..., 0] = np.where(edge, np.minimum(rgb[..., 0], rgb[..., 1] + 40), rgb[..., 0])
+    rgb[..., 2] = np.where(edge, np.minimum(rgb[..., 2], rgb[..., 1] + 40), rgb[..., 2])
+    rgba = np.dstack([np.clip(rgb, 0, 255), a * 255]).astype(np.uint8)
+    ys, xs = np.where(rgba[..., 3] > 10)
+    save(os.path.join(OUT, "logo_cpts.png"), rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1])
+    doc = lg[44:396, 804:1876]
+    save(os.path.join(OUT, "logo_doctolib.png"), np.dstack([doc, np.full(doc.shape[:2], 255, np.uint8)]))
+    print("logos")
     if static_only:
         return
 

@@ -69,7 +69,8 @@ def words_of(i):
             en = e
     if cur:
         out.append((cur, st + VO_START[i], en + VO_START[i]))
-    return out
+    # the voice says "Dou" (phonetic spelling) but the screen must read "Doubs"
+    return [("Doubs" if w == "Dou" else w, s0, s1) for w, s0, s1 in out]
 
 
 def wt(i, word, nth=0):
@@ -386,6 +387,8 @@ def load_assets():
     for n in ["char_thinking", "char_waving", "char_laptop1", "char_laptop2", "char_laptop3", "char_presenting",
               "char_questions", "char_highfive", "envelope"]:
         A[n] = Seq(n)
+    A["logo_cpts"] = load_sprite(os.path.join(LAY, "logo_cpts.png"))
+    A["logo_doctolib"] = load_sprite(os.path.join(LAY, "logo_doctolib.png"))
     A["cursor"] = cursor_sprite()
     A["browser_g"] = browser_sprite(1180, 760, "google.fr")
     A["browser_d"] = browser_sprite(1180, 760, "doctolib.fr", content=(16, 122, 202))
@@ -930,6 +933,12 @@ def overlay(fr, A, t, scene_name):
                  cam=False)
             blit(fr, text(f"ÉTAPE {n}", 30, WHITE, 700), 960 - 205, 76, p, cam=False)
             blit(fr, text(label, 36, NAVY, 600, align="left"), 960 - 110, 75, p, ax=0.0, cam=False)
+    # logos, always on top: CPTS on a white disc, Doctolib on a blue rounded rectangle
+    blit(fr, A.setdefault("logo_disc", circle(118, WHITE + (255,), shadow=True)), 140, 935, 1, cam=False)
+    blit(fr, A["logo_cpts"], 140, 935, 190 / max(A["logo_cpts"].w, A["logo_cpts"].h), cam=False)
+    dcol = tuple(int(v) for v in A["logo_doctolib"].mips[0][5, 5, :3])
+    blit(fr, A.setdefault("logo_rect", rrect(330, 110, 24, dcol + (255,), outline=(255, 255, 255, 255), ow=4, shadow=True)), 195, 82, 1, cam=False)
+    blit(fr, A["logo_doctolib"], 195, 82, 300 / A["logo_doctolib"].w, cam=False)
     # captions
     for s0, s1, txt in CAPS:
         if s0 <= t < s1:
