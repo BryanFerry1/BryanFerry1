@@ -1,0 +1,4 @@
+assets/layers/
+out/_*
+out/frame_*.png
+__pycache__/
