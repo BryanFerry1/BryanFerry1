@@ -20,7 +20,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
-from engine import FPS, RED, WHITE, W, clamp, draw_spaced, font, paint, rotate_pose, run_pose, smoothstep
+from engine import fit_font, FPS, RED, WHITE, W, clamp, draw_spaced, font, paint, rotate_pose, run_pose, smoothstep
 from kit import Log, Video, blend, caption, draw_body, ending, lane_cam, sit, stand
 import sfx
 import skia
@@ -35,12 +35,21 @@ STRIDE = 2.6
 DAY_KF = [(0, 1), (3.6, 3), (4.0, 4), (6.0, 4), (6.2, 5), (8.4, 9), (8.6, 10), (11.0, 10), (11.2, 11), (14.0, 20),
           (14.2, 21), (16.0, 29), (16.2, 30), (30, 30)]
 NEWME = 9.4
-GIVEUP = (12.2, 12.9)
-STATS = 19.0
-END_T = 21.8
-DUR = 25.8
-M_KM = [(0, 0), (3.8, 45), (9.4, 45), (11.0, 70), (12.2, 90), (16.2, 90), (18.8, 102)]
-D_KM = [(0, 0), (16.2, 290), (18.8, 300)]
+GIVEUP = (12.2, 13.4)
+D_FIN = 18.2
+M_STOP = 19.7
+STATS = 99.0
+END_T = 22.4
+DUR = 26.4
+M_KM = [(0, 0), (3.8, 45), (9.4, 45), (11.0, 70), (12.2, 88), (16.2, 88), (M_STOP, 104)]
+D_KM = [(0, 0), (16.2, 290), (D_FIN, 300)]
+# full-screen zooms: (t0, t1, lane, s0, s1, dx, wy0, wy1)
+FULL = [(4.3, 5.9, "MOTIVATION", 235, 265, -0.4, 1.3, 1.2),
+        (8.6, 10.0, "MOTIVATION", 245, 275, 0.0, 1.5, 1.4),
+        (12.3, 13.4, "MOTIVATION", 240, 265, 0.0, 1.4, 1.3),
+        (14.5, 16.1, "DISCIPLINE", 230, 260, 0.0, 1.5, 1.4),
+        (17.9, 19.5, "DISCIPLINE", 215, 245, 0.2, 1.5, 1.4),
+        (19.5, 22.4, "MOTIVATION", 240, 70, 0.0, 1.3, 5.5)]
 
 
 def keys(t, kf):
@@ -83,9 +92,9 @@ def m_activity(t):
         return "knees"
     if t < 16.2:
         return "phone"
-    if t < STATS:
+    if t < M_STOP:
         return "record"
-    return "stats"
+    return "stop"
 
 
 def m_speed(a, t):
@@ -93,9 +102,32 @@ def m_speed(a, t):
 
 
 def d_speed(t):
-    if t >= STATS:
-        return 0.0
+    if t >= D_FIN + 0.4:
+        return 1.6
     return 2.6 if 14.2 <= t < 16.2 else 3.6
+
+
+def full_at(t):
+    for f in FULL:
+        if f[0] <= t < f[1]:
+            return f
+    return None
+
+
+def presim():
+    pos = {"MOTIVATION": 0.0, "DISCIPLINE": 0.0}
+    out = []
+    for fi in range(int(DUR * FPS) + 2):
+        t = fi * dt
+        out.append(dict(pos))
+        pos["MOTIVATION"] += m_speed(m_activity(t), t) * dt
+        pos["DISCIPLINE"] += d_speed(t) * dt
+    return out
+
+
+SIM = presim()
+GATE_X = SIM[int(D_FIN * FPS)]["DISCIPLINE"] + 0.45
+SIGN_X = SIM[int(M_STOP * FPS)]["MOTIVATION"] + 2.6
 
 
 # ------------------------------------------------------------------ props
@@ -177,14 +209,15 @@ def stamp(c, x, y, text, u, col=RED):
 
 
 def render(stills=None):
+    from engine import Camera
     v = Video(OUT, NAME, DUR, stills)
     log = Log()
-    pos = {"MOTIVATION": 0.0, "DISCIPLINE": 0.0}
     ph = {"MOTIVATION": 0.0, "DISCIPLINE": 0.7}
     contact = {}
     last_day = 1
     for fi in range(v.n):
         t = fi * dt
+        pos = SIM[fi]
         d = day(t)
         if d != last_day:
             log.add(t, "day", d)
@@ -192,7 +225,6 @@ def render(stills=None):
         a = m_activity(t)
         spd = {"MOTIVATION": m_speed(a, t), "DISCIPLINE": d_speed(t)}
         for n in pos:
-            pos[n] += spd[n] * dt
             ph[n] += (spd[n] / STRIDE) * 2 * math.pi * dt * (0.7 if n == "MOTIVATION" else 1.0)
             for leg in range(2):
                 c = math.floor((ph[n] + leg * math.pi - 1.87) / (2 * math.pi))
@@ -202,33 +234,75 @@ def render(stills=None):
                 contact[key] = c
         for key, tt, kind in (("go", 0.0, "go"), ("rain", 4.0, "rain"), ("video", 8.6, "video"),
                               ("newme", NEWME, "newme"), ("giveup", GIVEUP[0], "giveup"), ("tired", 14.2, "tired"),
-                              ("d30", 16.2, "d30"), ("record", 17.4, "record"), ("stats", STATS, "stats"),
-                              ("end", END_T, "end"), ("end2", END_T + 1.3, "end2")):
+                              ("d30", 16.2, "d30"), ("record", 17.0, "record"), ("dfin", D_FIN, "dfin"),
+                              ("mstop", M_STOP, "mstop"), ("end", END_T, "end"), ("end2", END_T + 1.3, "end2")):
             if t >= tt:
                 log.once(key, tt, kind)
+        for k, f in enumerate(FULL):
+            if t >= f[0]:
+                log.once(f"full{k}", f[0], "zoom")
         if not v.wants(fi):
             continue
 
         v.clear()
         e, f_, tc, hc, oc = v.env.canvas, v.fig.canvas, v.txt.canvas, v.hero.canvas, v.over.canvas
         wth = weather(d)
-        for n, (y0, y1, gy) in LANES.items():
+        fz = full_at(t)
+        if fz is None:
+            panes = []
+            for n, (y0, y1, gy) in LANES.items():
+                cam = lane_cam(S, gy, pos[n])
+                cam.sx = RUN_SX
+                panes.append((n, y0, y1, cam, False))
+        else:
+            t0, t1, n, s0, s1, dx, wy0, wy1 = fz
+            u = smoothstep(t0, t1, t) if n == "MOTIVATION" and t0 == 19.5 else (t - t0) / (t1 - t0)
+            if t0 == 19.5:
+                u = smoothstep(M_STOP + 0.7, t1 - 0.3, t)
+            cam = Camera()
+            cam.s = s0 + (s1 - s0) * u
+            cam.wx = pos[n] + dx + (4.0 * u if t0 == 19.5 else 0.0)
+            cam.wy = wy0 + (wy1 - wy0) * u
+            cam.sx, cam.sy = 450, 960
+            panes = [(n, 0, 2000, cam, True)]
+        for n, y0, y1, cam, full in panes:
             x = pos[n]
-            cam = lane_cam(S, gy, x)
-            cam.sx = RUN_SX
+            gy = cam.pt((0, 0))[1]
             for L in (v.env, v.fig, v.hero, v.txt):
                 L.canvas.save()
                 L.canvas.clipRect(skia.Rect(0, y0, W, y1))
             e.drawLine(0, gy, W, gy, paint(WHITE, 0.55, 2.5))
-            k0 = math.floor(x - 4)
-            for k in range(k0, k0 + 10):
+            k0 = math.floor(cam.wx - 600 / cam.s)
+            for k in range(k0, k0 + int(1200 / cam.s) + 2):
                 sx, _ = cam.pt((k * 1.0, 0))
                 e.drawLine(sx, gy + 10, sx - 18, gy + 26, paint(WHITE, 0.16, 2))
-            if t < STATS:
-                sky(e, f_, cam, y0, y1, wth, t, d)
+            sky(e, f_, cam, y0 if not full else 330, y1 if not full else 1560, wth, t, d)
             col = RED if n == "MOTIVATION" else WHITE
             txt = None
             j = None
+            if n == "DISCIPLINE" and t > 15.6:
+                for px in (GATE_X - 0.45, GATE_X + 0.45):
+                    e.drawLine(*cam.pt((px, 0)), *cam.pt((px, 2.9)), paint(WHITE, 0.7, 4))
+                e.drawLine(*cam.pt((GATE_X - 0.45, 2.9)), *cam.pt((GATE_X + 0.45, 2.9)), paint(WHITE, 0.7, 4))
+                gx_, gy_ = cam.pt((GATE_X, 2.9))
+                draw_spaced(tc, "FINISH", gx_, gy_ - 12, font(0.22 * cam.s, "InterDisplay-Black"), 3, paint(WHITE, 0.9))
+                if t < D_FIN:
+                    f_.drawLine(*cam.pt((GATE_X - 0.45, 1.6)), *cam.pt((GATE_X + 0.45, 1.6)), paint(RED, 1.0, 6))
+                else:
+                    b = min(1.0, (t - D_FIN) / 0.4)
+                    for side, x0 in ((-1, GATE_X - 0.45), (1, GATE_X + 0.45)):
+                        f_.drawLine(*cam.pt((x0, 1.6)), *cam.pt((x0 + side * 0.1, 1.6 - 1.1 * b)), paint(RED, 1.0, 6))
+            if n == "MOTIVATION" and t > 16.2:
+                sx_, sy_ = cam.pt((SIGN_X, 0))
+                e.drawLine(sx_, sy_, sx_, sy_ - 2.2 * cam.s, paint(WHITE, 0.7, 4))
+                bw, bh = 1.9 * cam.s, 0.75 * cam.s
+                r = skia.Rect(sx_ - bw / 2, sy_ - 2.9 * cam.s, sx_ + bw / 2, sy_ - 2.9 * cam.s + bh)
+                e.drawRect(r, paint((0, 0, 0), 1.0))
+                e.drawRect(r, paint(WHITE, 0.8, 3, cap=False))
+                draw_spaced(tc, "FINISH", sx_, r.top() + bh * 0.42, font(max(10, 0.26 * cam.s), "InterDisplay-Black"), 3,
+                            paint(WHITE, 0.9))
+                draw_spaced(tc, "196 KM →", sx_, r.top() + bh * 0.85, font(max(10, 0.26 * cam.s), "InterDisplay-Black"), 2,
+                            paint(RED, 1.0))
             if n == "MOTIVATION":
                 if a in ("sprint", "burst", "record", "fade"):
                     inten = 1.0 if a != "fade" else 1.0 - 0.5 * smoothstep(11.0, GIVEUP[0], t)
@@ -239,105 +313,102 @@ def render(stills=None):
                         txt = "NEW ME!" if t < NEWME + 0.9 else None
                     if a == "fade" and t > 11.5:
                         txt = "..."
-                    if a == "record" and t > 17.4:
+                    if a == "record" and t > 17.0:
                         txt = "NEW RECORD!"
                     if a in ("burst", "record"):
                         for q in range(6):
                             yy = 0.4 + q * 0.35
                             sx_, sy_ = cam.pt((x - 0.9 - 0.3 * (q % 2), yy))
-                            hc.drawLine(sx_, sy_, sx_ - 0.9 * S, sy_, paint(RED, 0.6, 3))
+                            hc.drawLine(sx_, sy_, sx_ - 0.9 * cam.s, sy_, paint(RED, 0.6, 3))
                 elif a == "knees":
                     j = stand(x, 0.6, 0.45, 0.4, 0.2, 0.2, 0.5, -0.12)
                     txt = "TOO HARD"
+                elif a == "stop":
+                    u = smoothstep(M_STOP, M_STOP + 0.4, t)
+                    j = blend(run_pose(x, ph[n], 0.6), stand(x, 0.6, 0.45, 0.4, 0.2, 0.2, 0.5, -0.12), u)
+                    if t > M_STOP + 1.3:
+                        j = blend(j, sit(x - 0.3, 0.0, t, 0.8), smoothstep(M_STOP + 1.3, M_STOP + 1.8, t))
+                    txt = "TOO FAR..." if M_STOP + 0.3 < t < M_STOP + 1.6 else None
                 elif a == "bed":
                     bed(e, cam, x)
                     j = lying(x + 0.15, t)
                     txt = "NOT TODAY"
                 elif a in ("phone", "video"):
                     bed(e, cam, x)
-                    j, p = bed_phone(x, t)
-                    draw_body(hc, j, cam, col, 1.0, 0.15)
+                    jb, p = bed_phone(x, t)
+                    draw_body(hc, jb, cam, col, 1.0, 0.15)
                     draw_phone(hc, cam, p, 1.0, 1.0 if a == "video" else 0.0, t)
                     if a == "video":
                         hx, hy = cam.pt(p + np.array([0, 0.35]))
                         for q in range(3):
                             fl = 0.3 + 0.15 * math.sin(t * 20 + q * 2)
-                            f_.drawCircle(hx + (q - 1) * 14, hy - fl * S * 0.5, 10 + 6 * q % 3, paint(RED, 0.8))
-                    else:
-                        # SKIP stamp at every new day
-                        for (t0, v0), (t1, v1) in zip(DAY_KF, DAY_KF[1:]):
-                            pass
-                    j = None
-                elif a == "stats":
-                    j = None
+                            f_.drawCircle(hx + (q - 1) * 0.12 * cam.s, hy - fl * cam.s * 0.5, (0.09 + 0.05 * (q % 2)) * cam.s,
+                                          paint(RED, 0.8))
+                        txt = "MOTIVATIONAL VIDEO"
             else:
-                if t < STATS:
-                    tired = 14.2 <= t < 16.2
+                tired = 14.2 <= t < 16.2
+                if t < D_FIN - 0.2 or t > D_FIN + 0.3:
                     j = run_pose(x, ph[n], 0.55 if tired else 0.8, 0, 0.3 if tired else 0.15, 0.45 if tired else 0.05)
-                    if tired:
-                        txt = "TIRED. RAN ANYWAY."
+                else:
+                    j = run_pose(x, ph[n], 0.9, 0, 0.55, 0.15)
+                if t > D_FIN + 0.5:
+                    j = blend(j, stand(x, -0.05, 2.7, 2.9, 0.2, 0.2, -0.2), smoothstep(D_FIN + 0.5, D_FIN + 0.9, t))
+                if tired:
+                    txt = "TIRED. RAN ANYWAY."
             if j is not None:
                 draw_body(hc, j, cam, col, 1.0, 0.15)
             if txt:
                 jj = j if j is not None else stand(x, 0, 0, 0, 0, 0)
                 hx, hy = cam.pt(jj["head"])
                 hx = min(max(hx, 250), 640)
-                draw_spaced(tc, txt, hx, min(hy, gy - 2.3 * S) - 0.45 * S, font(40, "InterDisplay-Black"), 2,
+                fs = 40 if not full else 56
+                ty = min(hy, gy - 2.3 * cam.s) - 0.45 * cam.s
+                if full:
+                    ty = max(ty, 610)
+                draw_spaced(tc, txt, hx, ty, fit_font(txt, fs, "InterDisplay-Black", 2, 600), 2,
                             paint(col, 1.0))
-            if t < STATS:
-                lx, _ = cam.pt((x - (0.8 if a in ("bed", "phone", "video") and n == "MOTIVATION" else 0), 0))
-                draw_spaced(tc, n, lx, gy + 44, font(26, "Inter-Bold"), 5, paint(col, 1.0))
+            lx, _ = cam.pt((x - (0.8 if a in ("bed", "phone", "video") and n == "MOTIVATION" else 0), 0))
+            draw_spaced(tc, n, lx, gy + (44 if not full else 60), font(26 if not full else 36, "Inter-Bold"), 5,
+                        paint(col, 1.0))
+            if not full:
                 tot = keys(t, M_KM if n == "MOTIVATION" else D_KM)
                 draw_spaced(tc, f"{int(tot)} KM", 770, y0 + 60, font(40, "InterDisplay-Black"), 2,
                             paint(WHITE, 0.9 * smoothstep(2.4, 2.7, t)))
             for L in (v.env, v.fig, v.hero, v.txt):
                 L.canvas.restore()
-            # SKIP stamps (overlay) on Motivation's skipped days
-            if n == "MOTIVATION" and a in ("phone", "bed") and t < STATS:
-                for (t0, d0), (t1, d1) in zip(DAY_KF, DAY_KF[1:]):
-                    pass
+            if n == "MOTIVATION" and a in ("phone", "bed") and not full:
                 tday = keys(t, DAY_KF)
                 u = tday - math.floor(tday)
                 if (6.0 <= t < 8.6) or (14.2 <= t < 16.2):
                     stamp(oc, 640, y0 + 330, "SKIP", min(0.99, u * 1.6) if u < 0.62 else 0.99)
-            # stats panel
-            if t >= STATS:
-                sa = smoothstep(STATS, STATS + 0.3, t)
-                rows = ([("DAYS", "7/30", WHITE), ("TOTAL", "102 KM", WHITE), ("BEST", "3:50 /KM", RED)]
-                        if n == "MOTIVATION" else
-                        [("DAYS", "30/30", WHITE), ("TOTAL", "300 KM", WHITE), ("BEST", "5:30 /KM", WHITE)])
-                draw_spaced(oc, n, 470, y0 + 90, font(46, "InterDisplay-Black"), 6, paint(col, sa))
-                for r, (lab, val, c_) in enumerate(rows):
-                    ra = smoothstep(STATS + 0.25 + 0.35 * r, STATS + 0.45 + 0.35 * r, t)
-                    yy = y0 + 200 + r * 110
-                    draw_spaced(oc, lab, 260, yy, font(40, "Inter-Bold"), 6, paint(WHITE, 0.7 * ra))
-                    win = (n == "MOTIVATION" and lab == "BEST") or (n == "DISCIPLINE" and lab != "BEST")
-                    draw_spaced(oc, val, 600, yy, font(64 if win else 50, "InterDisplay-Black"), 2,
-                                paint(c_ if not win else (RED if n == "MOTIVATION" else WHITE), ra))
-                    if win:
-                        draw_spaced(oc, "WIN", 790, yy, font(30, "InterDisplay-Black"), 3,
-                                    paint(RED if n == "MOTIVATION" else WHITE, ra))
-        # divider: day + progress bar (total km, out of 300)
-        y = 950
-        oc.drawRect(skia.Rect(0, 935, W, 965), paint((0, 0, 0), 1.0))
-        draw_spaced(oc, f"DAY {d}", 150, 964, font(36, "InterDisplay-Black"), 3, paint(WHITE, 1.0))
-        oc.drawLine(270, y, 840, y, paint(WHITE, 0.35, 3))
-        oc.drawLine(840, y - 12, 840, y + 12, paint(WHITE, 0.8, 3))
-        for n, c_ in (("DISCIPLINE", WHITE), ("MOTIVATION", RED)):
-            px = 270 + 570 * clamp(keys(t, M_KM if n == "MOTIVATION" else D_KM) / 300)
-            oc.drawCircle(px, y, 11, paint(c_, 1.0))
+        if fz is None:
+            y = 950
+            oc.drawRect(skia.Rect(0, 935, W, 965), paint((0, 0, 0), 1.0))
+            draw_spaced(oc, f"DAY {d}", 150, 964, font(36, "InterDisplay-Black"), 3, paint(WHITE, 1.0))
+            oc.drawLine(270, y, 840, y, paint(WHITE, 0.35, 3))
+            oc.drawLine(840, y - 12, 840, y + 12, paint(WHITE, 0.8, 3))
+            for n, c_ in (("DISCIPLINE", WHITE), ("MOTIVATION", RED)):
+                px = 270 + 570 * clamp(keys(t, M_KM if n == "MOTIVATION" else D_KM) / 300)
+                oc.drawCircle(px, y, 11, paint(c_, 1.0))
+        else:
+            n = fz[2]
+            draw_spaced(oc, f"DAY {d}", 470, 420, font(60, "InterDisplay-Black"), 4, paint(WHITE, 1.0))
+            tot = keys(t, M_KM if n == "MOTIVATION" else D_KM)
+            draw_spaced(oc, f"{int(tot)} KM", 470, 490, font(40, "InterDisplay-Black"), 3,
+                        paint(RED if n == "MOTIVATION" else WHITE, 0.9))
         if t < 2.5:
             caption(oc, "MOTIVATION VS DISCIPLINE", 405, 1 - smoothstep(2.1, 2.5, t), WHITE, 46)
             draw_spaced(oc, "30 DAYS. 5 AM.", 680, 1030, font(36, "InterDisplay-Black"), 2,
                         paint(RED, (1 - smoothstep(2.1, 2.5, t)) * smoothstep(0.2, 0.4, t)))
-        ending(oc, t, END_T - 0.3, [(END_T, "MOTIVATION HAD", RED, 92), (END_T + 0.3, "THE BEST DAYS.", RED, 96),
-                                    (END_T + 1.1, "DISCIPLINE HAD", WHITE, 92), (END_T + 1.4, "ALL OF THEM.", WHITE, 110)],
+        ending(oc, t, END_T - 0.3, [(END_T, "MOTIVATION", RED, 110), (END_T + 0.3, "STARTS.", RED, 110),
+                                    (END_T + 1.1, "DISCIPLINE", WHITE, 110), (END_T + 1.4, "FINISHES.", WHITE, 120)],
                gap=125)
         cut = 0.0
-        for tt in (4.0, 8.6, NEWME, 11.0, 14.2, 16.2, STATS):
+        for tt in [4.0, 8.6, NEWME, 11.0, 14.2, 16.2] + [f[0] for f in FULL] + [f[1] for f in FULL]:
             if tt <= t < tt + 0.1:
                 cut = 0.07
-        v.compose(fi, t, white=cut, dim=0.2 if wth in ("night", "snow") and t < STATS else 0.0, fade_in=0.0)
+        flash = 0.6 * math.exp(-(t - D_FIN) * 4) if t >= D_FIN else 0.0
+        v.compose(fi, t, flash=flash, white=cut, dim=0.2 if wth in ("night", "snow") else 0.0, fade_in=0.0)
     v.finish(build_audio, log.events)
 
 
@@ -377,9 +448,15 @@ def build_audio(events, path):
         elif kind == "record":
             m.add(t, sfx.chime(1320, 0.3), 0.6, 0, 0.5)
             m.add(t, sfx.sparkle(1.2), 0.4, 0, 0.5)
-        elif kind == "stats":
-            for q in range(3):
-                m.add(t + 0.25 + 0.35 * q, sfx.text_hit(q + 1), 0.5, 0, 0.4)
+        elif kind == "zoom":
+            m.add(t, sfx.whoosh(0.3, 400, 8000, 0.4, seed=int(t)), 0.35, 0, 0.2)
+        elif kind == "dfin":
+            m.add(t, sfx.boom(2.5), 0.8, 0, 0.5)
+            m.add(t, sfx.applause(2.0, 30, 4), 0.35, 0, 0.3)
+        elif kind == "mstop":
+            m.add(t, sfx.power_down(1.6), 0.5, 0, 0.4)
+            m.add(t + 0.4, sfx.breath(2, 0.6), 0.5, 0, 0.3)
+            m.add(t + 1.0, sfx.heartbeat(), 0.6, 0, 0.3)
         elif kind == "end":
             m.add(t, sfx.text_hit(1), 0.7, 0, 0.4)
         elif kind == "end2":
@@ -391,7 +468,7 @@ def build_audio(events, path):
 if __name__ == "__main__":
     print(f"duration {DUR:.2f}")
     if "--stills" in sys.argv:
-        ts = [1.0, 3.0, 5.0, 7.0, 8.9, 10.0, 11.7, 12.5, 13.5, 15.0, 17.8, 20.0, 24.0]
+        ts = [1.0, 3.0, 5.0, 7.0, 9.0, 9.7, 11.7, 12.8, 13.8, 15.0, 17.0, 18.4, 19.0, 20.0, 21.0, 22.2, 25.0]
         render(stills=sorted(set(int(x * FPS) for x in ts)))
     else:
         render()
