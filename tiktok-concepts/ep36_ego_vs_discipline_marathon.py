@@ -36,20 +36,22 @@ STRIDE = 2.6
 BACKWARD = (3.0, 4.2)
 SELFIE = (4.4, 5.6)
 FLEX = (6.0, 7.6)
-WALL = (10.5, 12.5)
-LOOK = (12.4, 12.9)
-CELEB = 14.6
-D_FIN = 15.2
-FREEZE = (15.3, 17.5)
+WALL = (10.5, 12.3)
+LOOK = (12.3, 12.8)
+CELEB = 13.9
+REALIZE = (15.45, 15.7)
+E_LINE = 16.6
+D_FIN = 15.9
+FREEZE = (15.95, 18.0)
 FZ = FREEZE[1] - FREEZE[0]
-END_T = 19.4
-DUR = 23.4
+END_T = 19.9
+DUR = 23.9
 D_WATER = 16.0
-CAM_LOCK = (13.4, 14.3)
-LOCK_X = 41.0
+CAM_LOCK = (12.9, 13.7)
+LOCK_X = 40.0
 
-E_KF = [(0, 0.0), (3.0, 13.0), (5.6, 21.6), (FLEX[0], 23.4), (FLEX[1], 23.6), (WALL[0], 33.0), (WALL[1], 35.6),
-        (CELEB, 41.35), (CELEB + 0.5, 41.62)]
+E_KF = [(0, 0.0), (3.0, 13.0), (5.6, 21.6), (FLEX[0], 23.4), (FLEX[1], 23.6), (WALL[0], 33.0), (WALL[1], 34.6),
+        (LOOK[1], 34.7), (CELEB, 39.0), (REALIZE[0], 39.15), (REALIZE[1], 39.15), (E_LINE, 42.0), (E_LINE + 0.6, 42.4)]
 D_KF = [(0, 0.0), (D_FIN, 42.0), (D_FIN + 3.0, 47.0)]
 
 
@@ -76,7 +78,7 @@ def km(n, ts):
         return keys(ts, E_KF)
     x = keys(ts, D_KF)
     if ts > D_FIN:                       # easy jog after the line
-        x = 42.0 + 1.1 * (ts - D_FIN)
+        x = 42.0 + 2.0 * (ts - D_FIN)
     return x
 
 
@@ -164,7 +166,7 @@ def render(stills=None):
                            x + (LOCK_X - x) * lock)
             cam.sx = RUN_SX + (180 - RUN_SX) * 0 + (300 - RUN_SX) * zoom
             if zoom > 0:
-                cam.wx = cam.wx + (FINISH - 0.3 - cam.wx) * zoom
+                cam.wx = cam.wx + (FINISH - 1.1 - cam.wx) * zoom
             for L in (v.env, v.fig, v.hero, v.txt):
                 L.canvas.save()
                 L.canvas.clipRect(skia.Rect(0, y0, W, y1))
@@ -184,9 +186,9 @@ def render(stills=None):
                 if n == "DISCIPLINE":
                     bu = None if ts < D_FIN else (ts - D_FIN) / 0.4
                 else:
-                    bu = None
+                    bu = None if ts < E_LINE else (ts - E_LINE) / 0.4
                 finish_gate(e, f_, cam, bu)
-                crowd(e, cam, FINISH - 3.6 if n == "EGO" else FINISH + 2.6, ts, 3, phones=(n == "EGO"),
+                crowd(e, cam, FINISH - 5.6 if n == "EGO" else FINISH + 2.6, ts, 3, phones=(n == "EGO"),
                       flash_t=ts if (n == "EGO" and ts > CELEB) else None)
             # ---------------- runners
             if n == "EGO":
@@ -219,12 +221,19 @@ def render(stills=None):
                 elif LOOK[0] <= ts < LOOK[1]:
                     j = stand(x, -0.1, 0.4, 0.3, 0.6, 0.5, -0.6)
                     txt = "!?"
-                elif ts >= CELEB:
+                elif CELEB <= ts < REALIZE[0]:
                     u = smoothstep(CELEB, CELEB + 0.35, ts)
                     j = blend(run_pose(x, ph[n], 0.6), arms_up(x, ts), u)
                     if ts > CELEB + 0.3:
                         j = mirror(j, x)
-                    txt = "EASY." if ts < D_FIN + 0.1 else None
+                    txt = "EASY."
+                elif REALIZE[0] <= ts < REALIZE[1]:
+                    j = stand(x, -0.1, 1.2, 1.3, 0.5, 0.5, -0.3)
+                    txt = "?!"
+                elif REALIZE[1] <= ts < E_LINE:
+                    j = run_pose(x, ph[n], 1.0, 0, 0.3, 0.0)
+                elif ts >= E_LINE:
+                    j = stand(x, 0.25, 0.1, 0.05, 0.2, 0.1, 0.8)
                 else:
                     inten = 1.0 - 0.6 * tired
                     j = run_pose(x, ph[n], inten, 0, 0.18 + 0.35 * tired, 0.1 + 0.5 * tired)
